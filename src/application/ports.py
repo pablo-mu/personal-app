@@ -1,0 +1,91 @@
+"""
+Define los puertos (interfaces) de la aplicación.
+
+CONCEPTOS CLAVE:
+----------------
+1. REPOSITORIO (The Drawer/Cajón):
+   Abstrae el almacenamiento. Para la aplicación, guardar un dato es como meterlo
+   en un cajón. No le importa si el cajón es de madera (Memoria), metal (SQLite)
+   o está en la nube (PostgreSQL).
+
+2. UNIT OF WORK (The Save Button/Botón Maestro):
+   Maneja la "Atomicidad". Si tienes que hacer 3 cosas (restar dinero, sumar dinero,
+   guardar registro), la UoW asegura que se hagan las 3 o ninguna. Evita datos corruptos.
+"""
+
+from abc import ABC, abstractmethod
+from typing import List, Optional, Any
+from uuid import UUID
+
+class AbstractRepository(ABC):
+    """
+    Interfaz genérica para cualquier "colección" de objetos.
+    Define las operaciones básicas CRUD (Create, Read, Update, Delete) sin implementación.
+    """
+    @abstractmethod
+    def add(self, entity: Any) -> None:
+        """Añade una entidad nueva al repositorio (pero no la guarda en DB hasta el commit)."""
+        pass
+
+    @abstractmethod
+    def get(self, entity_id: UUID) -> Optional[Any]:
+        """Busca una entidad por su ID único."""
+        pass
+
+    @abstractmethod
+    def list(self) -> List[Any]:
+        """Devuelve todas las entidades disponibles."""
+        pass
+
+class AbstractAccountRepository(AbstractRepository):
+    """Puerto específico para gestionar Cuentas (Accounts)."""
+    pass
+
+class AbstractTransactionRepository(AbstractRepository):
+    """Puerto específico para gestionar Transacciones (Transactions)."""
+    pass
+
+class AbstractTagRepository(AbstractRepository):
+    """Puerto específico para gestionar Etiquetas (Tags)."""
+    pass
+
+class AbstractUnitOfWork(ABC):
+    """
+    El patrón Unit of Work (Unidad de Trabajo).
+    
+    Actúa como un gestor de transacciones de base de datos. Mantiene una lista de
+    objetos nuevos, modificados o eliminados y los envía a la base de datos todos
+    juntos cuando se llama a `commit()`.
+
+    Uso típico con 'context manager' (with):
+    ---------------------------------------
+    with uow:
+        uow.accounts.add(cuenta_nueva)
+        uow.transactions.add(transaccion_nueva)
+        uow.commit()  # <- Aquí se guarda todo de golpe.
+    # Si hay un error dentro del 'with', se ejecuta rollback() automáticamente.
+    """
+    
+    accounts: AbstractAccountRepository
+    transactions: AbstractTransactionRepository
+    tags: AbstractTagRepository
+
+    def __enter__(self) -> "AbstractUnitOfWork":
+        """Inicia el bloque 'with'. Prepara la sesión."""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """
+        Cierra el bloque 'with'.
+        Si hubo una excepción (error), hace rollback automáticamente.
+        """
+        if exc_type is not None:
+            self.rollback()
+
+    @abstractmethod
+    def commit(self) -> None:
+        pass
+
+    @abstractmethod
+    def rollback(self) -> None:
+        pass

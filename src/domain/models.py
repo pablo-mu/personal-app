@@ -1,0 +1,98 @@
+"""
+Definimos los modelos de dominio para la aplicación de finanzas personales.
+Estos modelos representan las entidades principales y básicas de la aplicación.
+Cada modelo está diseñado utilizando dataclasses para facilitar la gestión de datos y asegurar la inmutabilidad donde sea necesario.
+Se definen los campos para seguir las mejores prácticas de tipado, 
+de responsabilidad única. Y así, construir la base de la contabilidad de partida doble.
+"""
+
+from dataclasses import dataclass, field
+from datetime import datetime
+from decimal import Decimal
+from typing import Optional
+from uuid import UUID
+from enum import Enum, auto
+from value_objects import Money
+
+class AccountType(Enum): 
+    """
+    Tipos de cuentas para la contabilidad de partida doble.
+    ASSET (Activo): Dinero que tengo o poseo (efectivo, cuentas bancarias, inversiones).
+    LIABILITY (Pasivo): Dinero que debo (préstamos, tarjetas de crédito).
+    INCOME (Ingreso): Dinero que recibo (salario, ventas).
+    EXPENSE (Gasto): Dinero que gasto (alquiler, comida, ocio).
+    EQUITY (Patrimonio): Valor neto (activos menos pasivos).
+    """
+    ASSET = auto()
+    LIABILITY = auto()
+    INCOME = auto()
+    EXPENSE = auto()
+    EQUITY = auto()
+
+@dataclass(frozen = True)
+class Account:
+    """
+    Representa una cuenta en la aplicación de finanzas personales.
+    Cada cuenta tiene un identificador único, un nombre, un tipo y un saldo inicial.
+    """
+    id: UUID
+    name: str
+    type: AccountType
+    initial_balance: Money = field(default_factory=Money.zero)
+
+@dataclass(frozen = True)
+class Tag:
+    """
+    Representa una etiqueta para categorizar transacciones.
+    """
+    id: UUID
+    name: str
+    color: Optional[str] = None  # Color en formato hexadecimal, e.g., "#FF5733"
+    icon: Optional[str] = None   # Nombre del icono, e.g., "shopping-cart"
+
+@dataclass(frozen = True)
+class TransactionEntry:
+    """
+    Representa un apunte individual (línea) dentro de una transacción.
+    En partida doble, cada línea afecta a una cuenta específica.
+
+    - amount > 0: Debe (Debit) -> Aumenta activos/gastos, disminuye pasivos/ingresos.
+    - amount < 0: Haber (Credit) -> Disminuye activos/gastos, aumenta pasivos/ingresos.
+    """
+    account_id: UUID
+    amount: Money
+
+@dataclass
+class Transaction:
+    """
+    Representa un movimiento financiero completo.
+    Una transacción consta de múltiples apuntes (líneas) cuya suma total
+    debe ser siempre CERO para mantener el equilibrio contable.
+
+    related_transacion_id: Permite vincular devoluciones o ajustes a transacciones originales 
+    sin modificar el historial.
+    """
+    id: UUID
+    date: datetime
+    description: str
+    entries: list[TransactionEntry]
+    related_transaction_id: Optional[UUID] = None
+    tags_ids: list[UUID] = field(default_factory=list)
+
+    def validate(self):
+        """
+        Valida la integridad de la transacción bajo el principio de partida doble.
+        """
+        if not self.entries:
+            raise ValueError("La transacción debe tener al menos un apunte.")
+        if len(self.entries) < 2:
+            raise ValueError("Mínimo 2 apuntes requeridos.")
+        
+        base_currency = self.entries[0].amount.currency
+        if any(e.amount.currency != base_currency for e in self.entries):
+             raise ValueError("Transacciones multi-moneda no soportadas.")
+
+        total = sum((entry.amount for entry in self.entries), Money.zero(base_currency))
+
+        if not total.is_zero():
+            raise ValueError(f"La transacción está desbalanceada. Suma total: {total.amount}")
