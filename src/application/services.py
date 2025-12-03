@@ -16,7 +16,8 @@ from .dtos import (
     AccountOutputDTO,
     TransactionEntryDTO,
     TransactionOutputDTO,
-    TagDTO
+    TagDTO,
+    MoneySchema
 )
 
 from .ports import AbstractUnitOfWork
@@ -44,7 +45,7 @@ class AccountService:
                 id=uuid.uuid4(),
                 name=dto.name,
                 type=dto.type,
-                initial_balance=Money(dto.initial_balance)
+                initial_balance=Money(amount=dto.initial_balance.amount, currency=dto.initial_balance.currency)
             )
 
             # 3. Usamos el repositorio para añadirla
@@ -87,7 +88,7 @@ class AccountService:
                     id=acct.id,
                     name=acct.name,
                     type=acct.type,
-                    initial_balance=acct.initial_balance
+                    initial_balance=MoneySchema(amount=acct.initial_balance.amount, currency=acct.initial_balance.currency)
                 ) for acct in accounts
             ]
         
@@ -144,7 +145,7 @@ class TransactionService:
                 id=transaction.id,
                 date=transaction.date,
                 description=transaction.description,
-                amount=Money(dto.amount.amount, dto.amount.currency),
+                amount=MoneySchema(amount=dto.amount.amount, currency=dto.amount.currency),
                 source_account_name=source_account.name,
                 destination_account_name=dest_account.name,
                 tags=tag_names

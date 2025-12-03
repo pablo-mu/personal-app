@@ -12,7 +12,7 @@ from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 from enum import Enum, auto
-from value_objects import Money
+from .value_objects import Money
 
 class AccountType(Enum): 
     """
