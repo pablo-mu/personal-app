@@ -17,18 +17,20 @@ from .value_objects import Money
 class AccountType(Enum): 
     """
     Tipos de cuentas para la contabilidad de partida doble.
-    ASSET (Activo): Dinero que tengo o poseo (efectivo, cuentas bancarias, inversiones).
-    LIABILITY (Pasivo): Dinero que debo (préstamos, tarjetas de crédito).
-    INCOME (Ingreso): Dinero que recibo (salario, ventas).
-    EXPENSE (Gasto): Dinero que gasto (alquiler, comida, ocio).
-    EQUITY (Patrimonio): Valor neto (activos menos pasivos).
+    Se define el nombre en español como valor y una descripción como metadato.
     """
-    ASSET = auto()
-    LIABILITY = auto()
-    INCOME = auto()
-    EXPENSE = auto()
-    EQUITY = auto()
+    ASSET = ("Activo", "Dinero que tengo o poseo. (Efectivo, cuentas bancarias, inversiones).")
+    LIABILITY = ("Pasivo", "Dinero que debo. (Préstamos, tarjetas de crédito).")
+    INCOME = ("Ingreso", "Dinero que recibo. (Salario, ventas).")
+    EXPENSE = ("Gasto", "Dinero que gasto. (Alquiler, comida, ocio).")
+    EQUITY = ("Patrimonio", "Valor neto (activos menos pasivos).")
 
+    def __new__(cls, label, description):
+        obj = object.__new__(cls)
+        obj._value_ = label
+        obj.description = description
+        return obj
+    
 @dataclass(frozen = True)
 class Account:
     """
