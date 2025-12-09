@@ -11,7 +11,7 @@ from src.infrastructure.persistence.models import AccountModel, TransactionModel
 from src.infrastructure.persistence.uow import SQLAlchemyUnitOfWork
 from src.application.services import AccountService, TransactionService, TagService
 from src.application.container import Services
-from src.presentation.main_dashboard import init_dashboard
+from src.ui.app import init_dashboard
 
 def create_tables():
     """Crea las tablas en la base de datos si no existen."""

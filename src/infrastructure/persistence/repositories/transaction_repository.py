@@ -70,3 +70,18 @@ class SQLAlchemyTransactionRepository(AbstractTransactionRepository):
             related_transaction_id=UUID(model.related_transaction_id) if model.related_transaction_id else None,
             tags_ids=tag_ids
         )
+
+    def count_by_account(self, account_id: UUID) -> int:
+        return self.session.query(TransactionEntryModel).filter(TransactionEntryModel.account_id == str(account_id)).count()
+
+    def update(self, transaction: Transaction) -> None:
+        # Por ahora, implementación básica que actualiza campos principales
+        model = self.session.query(TransactionModel).filter_by(id=str(transaction.id)).first()
+        if model:
+            model.date = transaction.date
+            model.description = transaction.description
+            model.related_transaction_id = str(transaction.related_transaction_id) if transaction.related_transaction_id else None
+            # TODO: Actualizar tags y entries si es necesario
+
+    def delete(self, transaction_id: UUID) -> None:
+        self.session.query(TransactionModel).filter_by(id=str(transaction_id)).delete()

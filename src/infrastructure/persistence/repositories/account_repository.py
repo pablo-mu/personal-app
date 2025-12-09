@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 from src.application.ports import AbstractAccountRepository
 from src.domain.models import Account, AccountType, AccountSearchCriteria
 from src.domain.value_objects import Money
-from src.infrastructure.persistence.models import AccountModel
+from sqlalchemy import func
+from src.infrastructure.persistence.models import AccountModel, TransactionEntryModel
 
 class SQLAlchemyAccountRepository(AbstractAccountRepository):
     def __init__(self, session: Session):
@@ -71,3 +72,36 @@ class SQLAlchemyAccountRepository(AbstractAccountRepository):
             query = query.filter(AccountModel.name.ilike(f"%{criteria.name_contains}%"))
 
         return [self._to_domain(model) for model in query.all()]
+
+    def update(self, account: Account) -> None:
+        model = self.session.query(AccountModel).filter_by(id=str(account.id)).first()
+        if model:
+            model.name = account.name
+            model.type = account.type.name
+            model.is_active = account.is_active
+            model.account_number = account.account_number
+            model.parent_account_id = str(account.parent_account_id) if account.parent_account_id else None
+            # Nota: No actualizamos el balance inicial normalmente, pero si se requiere, se añade aquí.
+
+    def delete(self, account_id: UUID) -> None:
+        self.session.query(AccountModel).filter_by(id=str(account_id)).delete()
+
+    def get_balance(self, account_id: UUID) -> Money:
+        """
+        Calcula el saldo actual sumando el balance inicial + todas las transacciones.
+        """
+        # 1. Obtener balance inicial
+        account_model = self.session.query(AccountModel).filter_by(id=str(account_id)).first()
+        if not account_model:
+            return Money(Decimal('0.00'))
+            
+        initial_balance = Decimal(account_model.initial_balance)
+        currency = account_model.initial_balance_currency
+
+        # 2. Sumar transacciones
+        # SELECT SUM(amount) FROM transaction_entries WHERE account_id = :id
+        total_transactions = self.session.query(func.sum(TransactionEntryModel.amount))\
+            .filter(TransactionEntryModel.account_id == str(account_id))\
+            .scalar() or Decimal('0.00')
+
+        return Money(initial_balance + total_transactions, currency)

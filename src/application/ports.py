@@ -37,6 +37,16 @@ class AbstractRepository(ABC):
         """Devuelve todas las entidades disponibles."""
         pass
 
+    @abstractmethod
+    def update(self, entity: Any) -> None:
+        """Actualiza una entidad existente."""
+        pass
+
+    @abstractmethod
+    def delete(self, entity_id: UUID) -> None:
+        """Elimina una entidad por su ID."""
+        pass
+
 from src.domain.models import Account, AccountType, AccountSearchCriteria
 
 class AbstractAccountRepository(AbstractRepository):
@@ -50,9 +60,17 @@ class AbstractAccountRepository(AbstractRepository):
     def search(self, criteria: AccountSearchCriteria) -> List[Account]:
         """Busca cuentas según los criterios de búsqueda del dominio."""
         pass
+
+    @abstractmethod
+    def get_balance(self, account_id: UUID) -> Any:
+        """Calcula el saldo actual de la cuenta."""
+        pass
 class AbstractTransactionRepository(AbstractRepository):
     """Puerto específico para gestionar Transacciones (Transactions)."""
-    pass
+    @abstractmethod
+    def count_by_account(self, account_id: UUID) -> int:
+        """Cuenta cuántas transacciones afectan a una cuenta específica."""
+        pass
 
 class AbstractTagRepository(AbstractRepository):
     """Puerto específico para gestionar Etiquetas (Tags)."""

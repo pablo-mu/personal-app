@@ -34,3 +34,13 @@ class SQLAlchemyTagRepository(AbstractTagRepository):
         Método helper (Factory/Mapper) para convertir modelo DB -> Entidad Dominio.
         """
         return Tag(id=UUID(model.id), name=model.name, color=model.color, icon=model.icon)
+
+    def update(self, tag: Tag) -> None:
+        model = self.session.query(TagModel).filter_by(id=str(tag.id)).first()
+        if model:
+            model.name = tag.name
+            model.color = tag.color
+            model.icon = tag.icon
+
+    def delete(self, tag_id: UUID) -> None:
+        self.session.query(TagModel).filter_by(id=str(tag_id)).delete()

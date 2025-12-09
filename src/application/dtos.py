@@ -41,7 +41,13 @@ class AccountOutputDTO(BaseModel):
     # Esto permite crear el DTO directamente desde la Entidad de Dominio
     model_config = {"from_attributes": True}
 
-# ...existing code...
+class AccountUpdateDTO(BaseModel):
+    """ DTO para actualizar una cuenta existente """
+    name: Optional[str] = None
+    type: Optional[AccountType] = None
+    is_active: Optional[bool] = None
+    account_number: Optional[str] = None
+    parent_account_id: Optional[UUID4] = None
 
 class AccountFilterDTO(BaseModel):
     """
@@ -55,6 +61,7 @@ class AccountFilterDTO(BaseModel):
     
     # Configuración extra si quieres que sea inmutable (opcional)
     model_config = {"frozen": True}
+    
 # --- TRANSACTIONS ---
 
 class TransactionEntryDTO(BaseModel):
