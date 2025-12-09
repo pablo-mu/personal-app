@@ -1,4 +1,4 @@
-from dash import html, dcc, Input, Output, State, dash_table
+from dash import html, dcc, Input, Output, State, dash_table, no_update
 import pandas as pd
 from decimal import Decimal
 from src.application.services.account_service import AccountService
@@ -8,6 +8,7 @@ from src.domain import AccountAlreadyExistsError
 
 def get_layout():
     return html.Div([
+        dcc.Store(id='accounts-update-signal', data=0), # Signal for reactivity
         html.H2("Gestión de Cuentas"),
         
         # --- Formulario de Creación ---
@@ -95,16 +96,18 @@ def register_callbacks(app, account_service: AccountService):
     @app.callback(
         Output('msg-create-acc', 'children'),
         Output('msg-create-acc', 'style'),
+        Output('accounts-update-signal', 'data'),
         Input('btn-create-acc', 'n_clicks'),
         State('acc-name', 'value'),
         State('acc-type', 'value'),
         State('acc-balance', 'value'),
+        State('accounts-update-signal', 'data'),
         prevent_initial_call=True
     )
 
-    def create_account(n_clicks, name, type_str, balance):
+    def create_account(n_clicks, name, type_str, balance, signal_data):
         if not name:
-            return "❌ El nombre es obligatorio.", {'color': 'red'}
+            return "❌ El nombre es obligatorio.", {'color': 'red'}, no_update
         
         try:
             acc_type = AccountType[type_str]
@@ -114,20 +117,20 @@ def register_callbacks(app, account_service: AccountService):
                 initial_balance = MoneySchema(amount=Decimal(str(balance)), currency="EUR")
             )
             account_service.create_account(dto)
-            return f"✅ Cuenta '{name}' creada con éxito.", {'color': 'green'}
+            return f"✅ Cuenta '{name}' creada con éxito.", {'color': 'green'}, (signal_data or 0) + 1
         except AccountAlreadyExistsError as e:
-            return f"⚠️ {str(e)}", {'color': 'orange'}
+            return f"⚠️ {str(e)}", {'color': 'orange'}, no_update
         except Exception as e:
-            return f"❌ Error: {str(e)}", {'color': 'red'}
+            return f"❌ Error: {str(e)}", {'color': 'red'}, no_update
         
     #Listar Cuentas
     @app.callback(
         Output('table-accounts', 'children'),
         Output('action-acc-selector', 'options'),
         Input('btn-refresh-acc', 'n_clicks'),
-        Input('btn-create-acc', 'n_clicks'),
+        Input('accounts-update-signal', 'data'),
     )
-    def list_accounts(n_refresh, n_create):
+    def list_accounts(n_refresh, signal_data):
         accounts = account_service.list_accounts()
         if not accounts:
             return "No hay cuentas registradas.", []
@@ -186,19 +189,21 @@ def register_callbacks(app, account_service: AccountService):
     # Delete & Update Account Callback (Unified Output)
     @app.callback(
         Output('msg-action-acc', 'children'),
+        Output('accounts-update-signal', 'data', allow_duplicate=True),
         Input('btn-delete-acc', 'n_clicks'),
         Input('btn-update-acc', 'n_clicks'),
         State('action-acc-selector', 'value'),
         State('edit-acc-name', 'value'),
         State('edit-acc-type', 'value'),
         State('edit-acc-active', 'value'),
+        State('accounts-update-signal', 'data'),
         prevent_initial_call=True
     )
-    def handle_account_actions(n_delete, n_update, account_id_str, new_name, new_type_str, new_active):
+    def handle_account_actions(n_delete, n_update, account_id_str, new_name, new_type_str, new_active, signal_data):
         from dash import ctx
         
         if not account_id_str:
-            return html.Span("❌ Debes seleccionar una cuenta.", style={'color': 'red'})
+            return html.Span("❌ Debes seleccionar una cuenta.", style={'color': 'red'}), no_update
         
         try:
             from uuid import UUID
@@ -207,7 +212,7 @@ def register_callbacks(app, account_service: AccountService):
 
             if button_id == 'btn-delete-acc':
                 account_service.delete_account(acc_uuid)
-                return html.Span(f"✅ Cuenta eliminada correctamente.", style={'color': 'green'})
+                return html.Span(f"✅ Cuenta eliminada correctamente.", style={'color': 'green'}), (signal_data or 0) + 1
             
             elif button_id == 'btn-update-acc':
                 # Construir DTO solo con campos que tengan valor
@@ -221,13 +226,13 @@ def register_callbacks(app, account_service: AccountService):
                 
                 # Si todos son None, no hacemos nada
                 if dto.name is None and dto.type is None and dto.is_active is None:
-                     return html.Span("⚠️ No has introducido ningún cambio.", style={'color': 'orange'})
+                     return html.Span("⚠️ No has introducido ningún cambio.", style={'color': 'orange'}), no_update
 
                 account_service.update_account(acc_uuid, dto)
-                return html.Span(f"✅ Cuenta actualizada correctamente.", style={'color': 'green'})
+                return html.Span(f"✅ Cuenta actualizada correctamente.", style={'color': 'green'}), (signal_data or 0) + 1
 
         except ValueError as e:
-            return html.Span(f"⚠️ {str(e)}", style={'color': 'orange'})
+            return html.Span(f"⚠️ {str(e)}", style={'color': 'orange'}), no_update
         except Exception as e:
-            return html.Span(f"❌ Error inesperado: {str(e)}", style={'color': 'red'})
+            return html.Span(f"❌ Error inesperado: {str(e)}", style={'color': 'red'}), no_update
 
