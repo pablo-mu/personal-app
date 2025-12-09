@@ -3,6 +3,7 @@ import pandas as pd
 from decimal import Decimal
 from src.application.dtos import AccountCreateDTO, MoneySchema
 from src.domain.models import AccountType
+from src.domain.exceptions import AccountAlreadyExistsError
 
 def get_layout():
     return html.Div([
@@ -78,6 +79,8 @@ def register_callbacks(app, account_service):
             )
             account_service.create_account(dto)
             return f"✅ Cuenta '{name}' creada con éxito.", {'color': 'green'}
+        except AccountAlreadyExistsError as e:
+            return f"⚠️ {str(e)}", {'color': 'orange'}
         except Exception as e:
             return f"❌ Error: {str(e)}", {'color': 'red'}
 

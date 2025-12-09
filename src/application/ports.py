@@ -37,10 +37,19 @@ class AbstractRepository(ABC):
         """Devuelve todas las entidades disponibles."""
         pass
 
+from src.domain.models import Account, AccountType, AccountSearchCriteria
+
 class AbstractAccountRepository(AbstractRepository):
     """Puerto específico para gestionar Cuentas (Accounts)."""
-    pass
+    @abstractmethod
+    def get_by_name_and_type(self, name: str, type: AccountType) -> Optional[Any]:
+        """Busca una cuenta por nombre y tipo."""
+        pass
 
+    @abstractmethod
+    def search(self, criteria: AccountSearchCriteria) -> List[Account]:
+        """Busca cuentas según los criterios de búsqueda del dominio."""
+        pass
 class AbstractTransactionRepository(AbstractRepository):
     """Puerto específico para gestionar Transacciones (Transactions)."""
     pass

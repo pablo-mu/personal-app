@@ -5,5 +5,8 @@ from .models import (
     TransactionEntry, 
     Tag
 )
+from .exceptions import (
+    AccountAlreadyExistsError
+)
 from .value_objects import Money
 from .factories import TransactionFactory

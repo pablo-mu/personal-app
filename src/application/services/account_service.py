@@ -1,9 +1,10 @@
 import uuid
-from typing import List
-from src.application.dtos import AccountCreateDTO, AccountOutputDTO, MoneySchema
+from typing import List, Optional
+from src.application.dtos import AccountCreateDTO, AccountOutputDTO, MoneySchema, AccountFilterDTO
 from src.application.ports import AbstractUnitOfWork
-from src.domain.models import Account
+from src.domain.models import Account, AccountSearchCriteria
 from src.domain.value_objects import Money
+from src.domain.exceptions import AccountAlreadyExistsError
 
 class AccountService:
     """
@@ -18,13 +19,25 @@ class AccountService:
         """
         # 1. Iniciamos la transacción con la base de datos (Unit of Work)
         with self.uow:
+            # Validación: Verificar si ya existe una cuenta con el mismo nombre y tipo
+            # Usamos el método search para reutilizar lógica de filtrado
+            criteria = AccountSearchCriteria(name_contains=dto.name, type=dto.type)
+            existing_accounts = self.uow.accounts.search(criteria)
+            
+            # Filtramos exactamente por nombre (search usa ilike/contains)
+            if any(acc.name == dto.name for acc in existing_accounts):
+                 raise AccountAlreadyExistsError(f"La cuenta '{dto.name}' de tipo '{dto.type.value}' ya existe.")
+
             # 2. Convertimos el DTO a una Entidad de Dominio
             # Generamos el ID aquí o dejamos que la DB lo haga (mejor aquí para UUIDs)
             new_account = Account(
                 id=uuid.uuid4(),
                 name=dto.name,
                 type=dto.type,
-                initial_balance=Money(amount=dto.initial_balance.amount, currency=dto.initial_balance.currency)
+                initial_balance=Money(amount=dto.initial_balance.amount, currency=dto.initial_balance.currency),
+                is_active=dto.is_active,
+                account_number=dto.account_number,
+                parent_account_id=dto.parent_account_id
             )
 
             # 3. Usamos el repositorio para añadirla
@@ -56,17 +69,29 @@ class AccountService:
             self.uow.commit()
         return None
     
-    def list_accounts(self) -> List[AccountOutputDTO]:
+    def list_accounts(self, filters: Optional[AccountFilterDTO] = None) -> List[AccountOutputDTO]:
         """
-        Devuelve todas las cuentas en formato DTO.
+        Devuelve todas las cuentas en formato DTO, aplicando filtros opcionales.
         """
+        if filters is None:
+            filters = AccountFilterDTO()
+
+        # Mapeamos el DTO de aplicación al objeto de criterios del dominio
+        criteria = AccountSearchCriteria(
+            type=filters.type,
+            parent_id=filters.parent_id,
+            is_active=filters.is_active,
+            name_contains=filters.name_contains
+        )
+
         with self.uow:
-            accounts = self.uow.accounts.list()
+            accounts = self.uow.accounts.search(criteria)
             return [
                 AccountOutputDTO(
                     id=acct.id,
                     name=acct.name,
                     type=acct.type,
-                    initial_balance=MoneySchema(amount=acct.initial_balance.amount, currency=acct.initial_balance.currency)
+                    initial_balance=MoneySchema(amount=acct.initial_balance.amount, currency=acct.initial_balance.currency),
+                    is_active=True # Asumimos True por ahora si no está en el modelo de dominio
                 ) for acct in accounts
             ]

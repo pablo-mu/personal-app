@@ -10,6 +10,7 @@ from src.infrastructure.persistence.db import engine, Base
 from src.infrastructure.persistence.models import AccountModel, TransactionModel, TagModel, TransactionEntryModel
 from src.infrastructure.persistence.uow import SQLAlchemyUnitOfWork
 from src.application.services import AccountService, TransactionService, TagService
+from src.application.container import Services
 from src.presentation.main_dashboard import init_dashboard
 
 def create_tables():
@@ -25,15 +26,18 @@ def main():
     # 2. Inyección de Dependencias
     uow = SQLAlchemyUnitOfWork()
     
-    account_service = AccountService(uow)
-    transaction_service = TransactionService(uow)
-    tag_service = TagService(uow)
+    # Creamos el contenedor de servicios
+    services = Services(
+        account=AccountService(uow),
+        transaction=TransactionService(uow),
+        tag=TagService(uow)
+    )
     
     # 3. Configuración del Servidor Web (Flask)
     server = Flask(__name__)
     
     # Inicializamos Dash con la instancia de Flask
-    app = init_dashboard(server, account_service, transaction_service, tag_service)
+    app = init_dashboard(server, services)
     
     print("🚀 Servidor arrancando en http://127.0.0.1:8050/")
     # Dash corre por defecto en el puerto 8050

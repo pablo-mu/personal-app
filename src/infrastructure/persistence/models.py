@@ -18,6 +18,9 @@ class AccountModel(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
     type = Column(String, nullable = False)
+    is_active = Column(Integer, default=1) # SQLite no tiene Boolean nativo, usamos 0/1
+    parent_account_id = Column(String(36), nullable=True)
+    account_number = Column(String, nullable=True)
 
     initial_balance = Column(Numeric(10, 2), default = 0.00)
     initial_balance_currency = Column(String(3), default = "EUR")

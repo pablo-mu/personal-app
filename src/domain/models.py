@@ -41,6 +41,20 @@ class Account:
     name: str
     type: AccountType
     initial_balance: Money = field(default_factory=Money.zero)
+    is_active: bool = True
+    account_number: Optional[str] = None
+    parent_account_id: Optional[UUID] = None  # Para cuentas jerárquicas
+
+@dataclass(frozen=True)
+class AccountSearchCriteria:
+    """
+    Criterios de búsqueda para filtrar cuentas en el dominio.
+    Desacopla la capa de persistencia de los DTOs de aplicación.
+    """
+    type: Optional[AccountType] = None
+    parent_id: Optional[UUID] = None
+    is_active: Optional[bool] = None
+    name_contains: Optional[str] = None
 
 @dataclass(frozen = True)
 class Tag:

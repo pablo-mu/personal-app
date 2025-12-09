@@ -1,8 +1,7 @@
 from dash import Dash, html, dcc
-from src.presentation.views import accounts_view, tags_view, transactions_view
-from src.application.container import Services
+from src.ui.views import accounts_view
 
-def init_dashboard(server, services: Services):
+def init_dashboard(server, account_service, transaction_service, tag_service):
     """
     Inicializa la aplicación Dash.
     Recibe el contenedor de servicios para conectar la UI con la lógica de negocio.
@@ -21,19 +20,19 @@ def init_dashboard(server, services: Services):
             
             # --- TAB 2: ETIQUETAS (TAGS) ---
             dcc.Tab(label='Etiquetas (Tags)', children=[
-                tags_view.get_layout()
+                # Aquí se agregaría la vista de etiquetas
             ]),
 
             # --- TAB 3: TRANSACCIONES ---
             dcc.Tab(label='Transacciones', children=[
-                transactions_view.get_layout()
+                # Aquí se agregaría la vista de transacciones
             ]),
         ])
     ], style={'fontFamily': 'Segoe UI, Arial, sans-serif', 'maxWidth': '1200px', 'margin': '0 auto', 'padding': '20px'})
 
     # --- REGISTER CALLBACKS ---
-    accounts_view.register_callbacks(app, services.account)
-    tags_view.register_callbacks(app, services.tag)
-    transactions_view.register_callbacks(app, services.transaction, services.account, services.tag)
-
+    accounts_view.register_callbacks(app, account_service)
+    # Aquí se registrarían los callbacks para tags_view y transactions_view
+    # tags_view.register_callbacks(app, tag_service)
+    # transactions_view.register_callbacks(app, transaction_service, account_service, tag_service)
     return app

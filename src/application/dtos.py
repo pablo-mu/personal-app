@@ -24,6 +24,9 @@ class AccountCreateDTO(BaseModel):
     type: AccountType
     # Pydantic validará que sea un objeto con amount y currency
     initial_balance: MoneySchema = Field(default_factory=lambda: MoneySchema(amount=Decimal('0.00')))
+    is_active: bool = True
+    account_number: Optional[str] = None
+    parent_account_id: Optional[UUID4] = None
 
 class AccountOutputDTO(BaseModel):
     """ DTO de Salida: Lo que respondemos al usuario """
@@ -31,10 +34,27 @@ class AccountOutputDTO(BaseModel):
     name: str
     type: AccountType
     initial_balance: MoneySchema
+    is_active: bool
+    account_number: Optional[str] = None
+    parent_account_id: Optional[UUID4] = None
 
     # Esto permite crear el DTO directamente desde la Entidad de Dominio
     model_config = {"from_attributes": True}
 
+# ...existing code...
+
+class AccountFilterDTO(BaseModel):
+    """
+    DTO para filtrar búsquedas de cuentas.
+    Todos los campos son opcionales.
+    """
+    type: Optional[AccountType] = None
+    parent_id: Optional[UUID4] = None
+    is_active: Optional[bool] = None  # None = Traer todas, True = Solo activas
+    name_contains: Optional[str] = None
+    
+    # Configuración extra si quieres que sea inmutable (opcional)
+    model_config = {"frozen": True}
 # --- TRANSACTIONS ---
 
 class TransactionEntryDTO(BaseModel):
