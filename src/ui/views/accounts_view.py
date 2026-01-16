@@ -104,7 +104,6 @@ def register_callbacks(app, account_service: AccountService):
         State('accounts-update-signal', 'data'),
         prevent_initial_call=True
     )
-
     def create_account(n_clicks, name, type_str, balance, signal_data):
         if not name:
             return "❌ El nombre es obligatorio.", {'color': 'red'}, no_update
@@ -143,13 +142,13 @@ def register_callbacks(app, account_service: AccountService):
             data.append({
                 "ID": str(acc.id),
                 "Nombre": acc.name,
-                "Tipo": acc.type.name,
+                "Tipo": acc.type.value,
                 "Saldo Actual": f"{real_balance.amount} {real_balance.currency}",
                 "Estado": "Activa" if acc.is_active else "Inactiva"
             })
             # Llenamos las opciones del dropdown
             options.append({
-                'label': f"{acc.name} ({acc.type.name})",
+                'label': f"{acc.name} ({acc.type.value})",
                 'value': str(acc.id)
             })
         
