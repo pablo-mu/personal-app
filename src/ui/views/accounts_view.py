@@ -1,237 +1,121 @@
-from dash import html, dcc, Input, Output, State, dash_table, no_update
-import pandas as pd
-from decimal import Decimal
-from src.application.services.account_service import AccountService
-from src.application.dtos import AccountCreateDTO, MoneySchema, AccountUpdateDTO
+from dash import html, dash_table, Input, Output
+import dash_bootstrap_components as dbc
 from src.domain.models import AccountType
-from src.domain import AccountAlreadyExistsError
 
-def get_layout():
+def layout_accounts():
+    """
+    Genera y devuelve el diseño (layout) de la interfaz de usuario para la sección de 'Cuentas'.
+    
+    Esta vista permite al usuario visualizar el listado de cuentas (Activos y Pasivos) existentes en el sistema.
+    
+    Componentes principales:
+    - Encabezado y descripción de la sección.
+    - Barra de herramientas:
+        - Botón "Nueva Cuenta" (Pendiente de implementación lógica).
+        - Campo de búsqueda (Filtro visual).
+        - Botón "Actualizar" para recargar los datos manualmente.
+    - Tabla de datos (dash_table.DataTable):
+        - Muestra columnas como Nombre, Tipo, Saldo Inicial, IBAN/Nº y Estado.
+        - Configurada con paginación y estilos básicos.
+    
+    Returns:
+        html.Div: Contenedor principal con todos los componentes de la vista.
+    """
     return html.Div([
-        dcc.Store(id='accounts-update-signal', data=0), # Signal for reactivity
-        html.H2("Gestión de Cuentas"),
+        # Título y subtítulo de la sección
+        html.H2("💳 Gestión de Cuentas", style={'color': '#c0392b'}),
+        html.P("Gestiona tus cuentas bancarias y tarjetas de crédito.", style={'color': '#7f8c8d'}),
+        html.Hr(),
         
-        # --- Formulario de Creación ---
-        html.Div([
-            html.H3("Nueva Cuenta"),
-            dcc.Input(id='acc-name', type='text', placeholder='Nombre de la cuenta', style={'marginRight': '10px'}),
-            dcc.Dropdown(
-                id='acc-type',
-                options=[{'label': t.value, 'value': t.name} for t in AccountType],
-                placeholder="Selecciona Tipo",
-                style={'width': '200px', 'display': 'inline-block', 'marginRight': '10px'}
-            ),
-            dcc.Input(id='acc-balance', type='number', placeholder='Saldo Inicial', value=0, step=0.01),
-            html.Button('Crear Cuenta', id='btn-create-acc', n_clicks=0, style={'marginLeft': '10px'}),
-            html.Div(id='msg-create-acc', style={'marginTop': '10px'})
-        ], style={'padding': '20px', 'border': '1px solid #ddd', 'borderRadius': '5px', 'marginBottom': '20px'}),
+        # Barra de herramientas (Botonera)
+        dbc.Row([
+            dbc.Col(dbc.Button("➕ Nueva Cuenta", color="danger", id='btn-add-account'), width="auto"),
+            dbc.Col(dbc.Input(type="text", placeholder="Buscar cuenta..."), width=3),
+            dbc.Col(dbc.Button("🔄 Actualizar", id='btn-refresh-accounts', color="secondary"), width="auto"),
+        ], className="mb-3"),
 
-        # --- Listado de Cuentas ---
-        html.Div([
-            html.H3("Listado de Cuentas"),
-            html.Button('🔄 Actualizar', id='btn-refresh-acc', n_clicks=0, style={'marginBottom': '10px'}),
-            html.Div(id='table-accounts'),
-            
-            # --- Sección de Gestión (Unificada) ---
-            html.Hr(style={'marginTop': '30px', 'marginBottom': '30px'}),
-            
-            html.Div([
-                html.H3("⚙️ Gestionar Cuenta Existente", style={'marginTop': '0'}),
-                
-                # Selector Global
-                html.Div([
-                    html.Label("1. Selecciona la cuenta a gestionar:", style={'fontWeight': 'bold'}),
-                    dcc.Dropdown(
-                        id='action-acc-selector',
-                        placeholder="Busca por nombre...",
-                        style={'width': '100%'}
-                    ),
-                ], style={'marginBottom': '20px'}),
-
-                # Contenedor de Acciones (Flex)
-                html.Div([
-                    # Columna Izquierda: Modificar
-                    html.Div([
-                        html.H4("📝 Modificar Datos", style={'marginTop': '0', 'color': '#2c3e50'}),
-                        html.Div([
-                            html.Label("Nuevo Nombre:"),
-                            dcc.Input(id='edit-acc-name', type='text', placeholder='Dejar vacío para mantener', style={'width': '100%', 'marginBottom': '10px'}),
-                            
-                            html.Label("Nuevo Tipo:"),
-                            dcc.Dropdown(
-                                id='edit-acc-type',
-                                options=[{'label': t.value, 'value': t.name} for t in AccountType],
-                                placeholder="Dejar vacío para mantener",
-                                style={'marginBottom': '10px'}
-                            ),
-                            
-                            html.Label("Estado:"),
-                            dcc.Dropdown(
-                                id='edit-acc-active',
-                                options=[{'label': 'Activa', 'value': True}, {'label': 'Inactiva', 'value': False}],
-                                placeholder="Dejar vacío para mantener",
-                                style={'marginBottom': '15px'}
-                            ),
-                            
-                            html.Button('💾 Guardar Cambios', id='btn-update-acc', n_clicks=0, style={'width': '100%', 'backgroundColor': '#3498db', 'color': 'white', 'border': 'none', 'padding': '10px', 'cursor': 'pointer'}),
-                        ])
-                    ], style={'flex': '1', 'padding': '15px', 'backgroundColor': 'white', 'borderRadius': '5px', 'border': '1px solid #eee'}),
-
-                    # Columna Derecha: Eliminar
-                    html.Div([
-                        html.H4("⚠️ Zona de Peligro", style={'marginTop': '0', 'color': '#c0392b'}),
-                        html.P("Si eliminas la cuenta, esta acción no se puede deshacer. Solo se permite si no tiene transacciones.", style={'fontSize': '0.9em', 'color': '#7f8c8d'}),
-                        html.Button('🗑️ Eliminar Cuenta', id='btn-delete-acc', n_clicks=0, style={'width': '100%', 'backgroundColor': '#e74c3c', 'color': 'white', 'border': 'none', 'padding': '10px', 'cursor': 'pointer', 'marginTop': '20px'}),
-                    ], style={'flex': '1', 'padding': '15px', 'backgroundColor': '#fff5f5', 'borderRadius': '5px', 'border': '1px solid #ffcccc', 'display': 'flex', 'flexDirection': 'column', 'justifyContent': 'space-between'}),
-
-                ], style={'display': 'flex', 'gap': '20px'}),
-
-                html.Div(id='msg-action-acc', style={'marginTop': '20px', 'textAlign': 'center', 'fontWeight': 'bold'})
-
-            ], style={'padding': '20px', 'border': '1px solid #ddd', 'borderRadius': '5px', 'backgroundColor': '#f8f9fa'})
-        ])
+        # Tabla de visualización de cuentas
+        dash_table.DataTable(
+            id='table-accounts',
+            columns=[
+                {"name": "Nombre", "id": "name", "editable": True},  # Nombre editable directamente en celda
+                {"name": "Tipo", "id": "type", "editable": False},  # Tipo (Activo/Pasivo), no editable aquí
+                {"name": "Saldo Inicial", "id": "balance", "editable": False},
+                {"name": "IBAN/Nº", "id": "number", "editable": True}, # Número de cuenta editable
+                {"name": "Estado", "id": "status", "editable": False}, # Estado (Activa/Inactiva)
+            ],
+            data=[], # Los datos se rellenan vía callback
+            page_current=0,
+            page_size=10,
+            style_table={'overflowX': 'auto'},
+            style_header={'backgroundColor': 'white', 'fontWeight': 'bold'},
+        )
     ])
 
-def register_callbacks(app, account_service: AccountService):
-    @app.callback(
-        Output('msg-create-acc', 'children'),
-        Output('msg-create-acc', 'style'),
-        Output('accounts-update-signal', 'data'),
-        Input('btn-create-acc', 'n_clicks'),
-        State('acc-name', 'value'),
-        State('acc-type', 'value'),
-        State('acc-balance', 'value'),
-        State('accounts-update-signal', 'data'),
-        prevent_initial_call=True
-    )
-    def create_account(n_clicks, name, type_str, balance, signal_data):
-        if not name:
-            return "❌ El nombre es obligatorio.", {'color': 'red'}, no_update
-        
-        try:
-            acc_type = AccountType[type_str]
-            dto = AccountCreateDTO(
-                name = name,
-                type = acc_type,
-                initial_balance = MoneySchema(amount=Decimal(str(balance)), currency="EUR")
-            )
-            account_service.create_account(dto)
-            return f"✅ Cuenta '{name}' creada con éxito.", {'color': 'green'}, (signal_data or 0) + 1
-        except AccountAlreadyExistsError as e:
-            return f"⚠️ {str(e)}", {'color': 'orange'}, no_update
-        except Exception as e:
-            return f"❌ Error: {str(e)}", {'color': 'red'}, no_update
-        
-    #Listar Cuentas
-    @app.callback(
-        Output('table-accounts', 'children'),
-        Output('action-acc-selector', 'options'),
-        Input('btn-refresh-acc', 'n_clicks'),
-        Input('accounts-update-signal', 'data'),
-    )
-    def list_accounts(n_refresh, signal_data):
-        accounts = account_service.list_accounts()
-        if not accounts:
-            return "No hay cuentas registradas.", []
-
-        # Obtenemos el saldo real para cada cuenta
-        data = []
-        options = []
-        for acc in accounts:
-            real_balance = account_service.get_account_balance(acc.id)
-            data.append({
-                "ID": str(acc.id),
-                "Nombre": acc.name,
-                "Tipo": acc.type.value,
-                "Saldo Actual": f"{real_balance.amount} {real_balance.currency}",
-                "Estado": "Activa" if acc.is_active else "Inactiva"
-            })
-            # Llenamos las opciones del dropdown
-            options.append({
-                'label': f"{acc.name} ({acc.type.value})",
-                'value': str(acc.id)
-            })
-        
-        df = pd.DataFrame(data)
-        
-        # Usamos dash_table.DataTable para una tabla interactiva y copiable
-        table = dash_table.DataTable(
-            data=df.to_dict('records'),
-            columns=[{'name': i, 'id': i} for i in df.columns],
-            style_table={'overflowX': 'auto'},
-            style_cell={
-                'textAlign': 'left',
-                'padding': '10px',
-                'fontFamily': 'sans-serif'
-            },
-            style_header={
-                'backgroundColor': '#2c3e50',
-                'color': 'white',
-                'fontWeight': 'bold'
-            },
-            style_data_conditional=[
-                {
-                    'if': {'row_index': 'odd'},
-                    'backgroundColor': 'rgb(248, 248, 248)'
-                }
-            ],
-            page_size=10,  # Paginación
-            filter_action="native", # Permite filtrar columnas
-            sort_action="native",   # Permite ordenar columnas
-            # row_selectable="single", # Desactivamos selección de fila completa para permitir selección de texto
-            cell_selectable=True,    # Permite seleccionar celdas individuales (para copiar)
-            editable=False           # No editable directamente en tabla (usaremos formulario)
-        )
-
-        return table, options
+def register_callbacks(app, account_service):
+    """
+    Registra los callbacks (lógica interactiva) necesarios para la vista de Cuentas.
     
-    # Delete & Update Account Callback (Unified Output)
+    Args:
+        app (Dash): La instancia principal de la aplicación Dash.
+        account_service (AccountService): Servicio de dominio para acceder a las operaciones de Cuentas.
+    """
+    
     @app.callback(
-        Output('msg-action-acc', 'children'),
-        Output('accounts-update-signal', 'data', allow_duplicate=True),
-        Input('btn-delete-acc', 'n_clicks'),
-        Input('btn-update-acc', 'n_clicks'),
-        State('action-acc-selector', 'value'),
-        State('edit-acc-name', 'value'),
-        State('edit-acc-type', 'value'),
-        State('edit-acc-active', 'value'),
-        State('accounts-update-signal', 'data'),
-        prevent_initial_call=True
+        Output('table-accounts', 'data'),
+        Input('btn-refresh-accounts', 'n_clicks'),
+        Input('url', 'pathname')
     )
-    def handle_account_actions(n_delete, n_update, account_id_str, new_name, new_type_str, new_active, signal_data):
-        from dash import ctx
+    def update_accounts_table(n_clicks, pathname):
+        """
+        Callback para actualizar la tabla de cuentas.
         
-        if not account_id_str:
-            return html.Span("❌ Debes seleccionar una cuenta.", style={'color': 'red'}), no_update
+        Se dispara cuando:
+        1. Se carga la URL '/accounts' (navegación).
+        2. El usuario pulsa el botón 'Actualizar'.
         
-        try:
-            from uuid import UUID
-            acc_uuid = UUID(account_id_str)
-            button_id = ctx.triggered_id
-
-            if button_id == 'btn-delete-acc':
-                account_service.delete_account(acc_uuid)
-                return html.Span(f"✅ Cuenta eliminada correctamente.", style={'color': 'green'}), (signal_data or 0) + 1
+        Proceso:
+        - Verifica si la ruta actual es correcta.
+        - Llama al servicio para obtener todas las cuentas.
+        - Filtra solo las cuentas relevantes para esta vista (Activos 'ASSET' y Pasivos 'LIABILITY').
+          Se excluyen categorías de ingresos/gastos.
+        - Formatea los datos para que sean compatibles con el DataTable.
+        
+        Args:
+            n_clicks (int): Número de veces que se ha pulsado el botón refrescar.
+            pathname (str): Ruta actual de la aplicación.
             
-            elif button_id == 'btn-update-acc':
-                # Construir DTO solo con campos que tengan valor
-                acc_type = AccountType[new_type_str] if new_type_str else None
-                
-                dto = AccountUpdateDTO(
-                    name=new_name if new_name else None,
-                    type=acc_type,
-                    is_active=new_active
-                )
-                
-                # Si todos son None, no hacemos nada
-                if dto.name is None and dto.type is None and dto.is_active is None:
-                     return html.Span("⚠️ No has introducido ningún cambio.", style={'color': 'orange'}), no_update
-
-                account_service.update_account(acc_uuid, dto)
-                return html.Span(f"✅ Cuenta actualizada correctamente.", style={'color': 'green'}), (signal_data or 0) + 1
-
-        except ValueError as e:
-            return html.Span(f"⚠️ {str(e)}", style={'color': 'orange'}), no_update
-        except Exception as e:
-            return html.Span(f"❌ Error inesperado: {str(e)}", style={'color': 'red'}), no_update
-
+        Returns:
+            list[dict]: Lista de diccionarios con la información a mostrar en la tabla.
+        """
+        if pathname != '/accounts':
+            from dash import no_update
+            return no_update
+            
+        # Obtener todas las cuentas del servicio
+        accounts = account_service.list_accounts()
+        
+        # Filtrar solo cuentas reales (Bancos, Efectivo, Tarjetas) y Deudas.
+        # Se omiten las cuentas de sistema usadas para Ingresos y Gastos (Categorías).
+        relevant_accounts = [
+            a for a in accounts 
+            if a.type in [AccountType.ASSET, AccountType.LIABILITY]
+        ]
+        
+        # Transformar DTOs a formato para la tabla
+        data = []
+        for a in relevant_accounts:
+            # Obtener representación legible del tipo de cuenta
+            # Si el enum tiene valores complejos tupla, tomamos el primero, o usamos el nombre.
+            # Ajustar según implementación de AccountType.
+            type_str = a.type.value[0] if isinstance(a.type.value, tuple) else a.type.name
+            
+            data.append({
+                "name": a.name,
+                "type": type_str,
+                "balance": f"{a.initial_balance.amount} {a.initial_balance.currency}",
+                "number": a.account_number or "-",
+                "status": "Activa" if a.is_active else "Inactiva"
+            })
+            
+        return data

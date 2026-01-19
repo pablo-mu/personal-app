@@ -90,8 +90,8 @@ class Transaction:
     """
     id: UUID
     date: datetime
-    description: str
     entries: list[TransactionEntry]
+    description: Optional[str] = None
     related_transaction_id: Optional[UUID] = None
     tags_ids: list[UUID] = field(default_factory=list)
 

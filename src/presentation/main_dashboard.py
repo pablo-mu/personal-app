@@ -19,7 +19,7 @@ def init_dashboard(server, services: Services):
 
         dcc.Tabs([
             # --- TAB 1: DASHBOARD & OPERACIONES DIARIAS ---
-            dcc.Tab(label='📊 Dashboard', children=[
+            dcc.Tab(label='📝 Seguimiento', children=[
                 transactions_view.get_layout()
             ], style={'padding': '10px'}, selected_style={'backgroundColor': '#ecf0f1', 'padding': '10px', 'fontWeight': 'bold'}),
             

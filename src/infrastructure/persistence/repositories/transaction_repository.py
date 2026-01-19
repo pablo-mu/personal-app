@@ -45,6 +45,13 @@ class SQLAlchemyTransactionRepository(AbstractTransactionRepository):
             return None
         return self._to_domain(model)
     
+    def delete(self, transaction_id: str) -> None:
+        # En SQLAlchemy con cascade="all, delete-orphan", eliminar el padre debería eliminar los hijos (entries).
+        # Tags es many-to-many, solo se elimina la relación en la tabla association.
+        tx_model = self.session.query(TransactionModel).filter_by(id=str(transaction_id)).first()
+        if tx_model:
+            self.session.delete(tx_model)
+
     def list(self) -> List[Transaction]:
         models = self.session.query(TransactionModel).all()
         return [self._to_domain(model) for model in models]
@@ -75,9 +82,35 @@ class SQLAlchemyTransactionRepository(AbstractTransactionRepository):
         return self.session.query(TransactionEntryModel).filter(TransactionEntryModel.account_id == str(account_id)).count()
 
     def update(self, transaction: Transaction) -> None:
-        # Por ahora, implementación básica que actualiza campos principales
         model = self.session.query(TransactionModel).filter_by(id=str(transaction.id)).first()
         if model:
+            # 1. Actualizar campos simples
+            model.description = transaction.description
+            model.date = transaction.date
+            model.related_transaction_id = str(transaction.related_transaction_id) if transaction.related_transaction_id else None
+
+            # 2. Gestionar Etiquetas (Reemplazo total)
+            if transaction.tags_ids is not None:
+                model.tags = [] # Limpiar
+                tags = self.session.query(TagModel).filter(TagModel.id.in_([str(t) for t in transaction.tags_ids])).all()
+                model.tags = tags
+
+            # 3. Gestionar Entradas (Reemplazo total: Borrar viejas, crear nuevas)
+            # SQLAlchemy debería borrar las entries viejas si la cascada está configurada.
+            # Si no, las borramos manualmente.
+            self.session.query(TransactionEntryModel).filter_by(transaction_id=str(transaction.id)).delete()
+            
+            new_entries = []
+            for entry in transaction.entries:
+                entry_model = TransactionEntryModel(
+                    transaction_id=str(transaction.id),
+                    account_id=str(entry.account_id),
+                    amount=entry.amount.amount,
+                    currency=entry.amount.currency
+                )
+                new_entries.append(entry_model)
+            
+            model.entries = new_entries
             model.date = transaction.date
             model.description = transaction.description
             model.related_transaction_id = str(transaction.related_transaction_id) if transaction.related_transaction_id else None

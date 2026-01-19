@@ -66,7 +66,7 @@ class AccountFilterDTO(BaseModel):
 
 class TransactionEntryDTO(BaseModel):
     """ DTO de Entrada: Crear transacción """
-    description: str
+    description: Optional[str] = None
     amount: MoneySchema
     source_account_id: UUID4
     destination_account_id: UUID4
@@ -88,7 +88,10 @@ class TransactionOutputDTO(BaseModel):
     amount: MoneySchema
     source_account_name: str
     destination_account_name: str
+    source_account_id: Optional[UUID4] = None
+    destination_account_id: Optional[UUID4] = None
     tags: List[str] = Field(default_factory=list)
+    tags_ids: List[UUID4] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 

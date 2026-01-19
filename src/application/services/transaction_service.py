@@ -60,7 +60,72 @@ class TransactionService:
                 amount=MoneySchema(amount=dto.amount.amount, currency=dto.amount.currency),
                 source_account_name=source_account.name,
                 destination_account_name=dest_account.name,
+                source_account_id=source_account.id,
+                destination_account_id=dest_account.id,
                 tags=tag_names
+            )
+
+    def delete_transaction(self, transaction_id: str) -> None:
+        """
+        Elimina una transacción del sistema.
+        """
+        with self.uow:
+            # 1. Buscar Existente para validar que existe
+            existing_tx = self.uow.transactions.get(transaction_id)
+            if not existing_tx:
+                # O podríamos lanzar error, o simplemente ignorar si ya no existe (idempotencia)
+                 raise ValueError(f"Transacción {transaction_id} no encontrada")
+            
+            # 2. Eliminar
+            # Dependiendo de la implementación del Repo, podría ser un hard delete.
+            # En repositories/transaction_repository.py, necesitamos un método delete.
+            self.uow.transactions.delete(transaction_id)
+            self.uow.commit()
+
+    def update_transaction(self, transaction_id: str, dto: TransactionEntryDTO) -> TransactionOutputDTO:
+        """
+        Actualiza una transacción existente.
+        """
+        with self.uow:
+            # 1. Buscar Existente
+            existing_tx = self.uow.transactions.get(transaction_id)
+            if not existing_tx:
+                raise ValueError(f"Transacción {transaction_id} no encontrada")
+
+            # 2. Re-crear objeto dominio usando Factory (reciclando ID)
+            # Esto valida reglas de negocio de nuevo con los nuevos datos
+            source_account = self.uow.accounts.get(dto.source_account_id)
+            dest_account = self.uow.accounts.get(dto.destination_account_id)
+
+            updated_tx = TransactionFactory.create_transaction(
+                description=dto.description,
+                amount=dto.amount.amount,
+                currency=dto.amount.currency,
+                source_account_id=dto.source_account_id,
+                destination_account_id=dto.destination_account_id,
+                date=dto.date,
+                related_transaction_id=existing_tx.related_transaction_id, # Mantener relación si había
+                tags_ids=dto.tags_ids
+            )
+            # Forzamos el ID original para que sea un UPDATE en vez de INSERT
+            # Hack simple dado que la dataclass es 'frozen=False' por defecto (si no se especifica frozen=True)
+            # Pero en models.py Transaction NO es frozen (solo Entries y Accounts lo son), así que podemos asignar id.
+            updated_tx.id = existing_tx.id
+            
+            # 3. Persistir Cambios
+            self.uow.transactions.update(updated_tx)
+            self.uow.commit()
+
+            return TransactionOutputDTO(
+                id=updated_tx.id,
+                date=updated_tx.date,
+                description=updated_tx.description,
+                amount=dto.amount,
+                source_account_name=source_account.name,
+                destination_account_name=dest_account.name,
+                source_account_id=source_account.id,
+                destination_account_id=dest_account.id,
+                tags=[] # Simplificación
             )
 
     def list_transactions(self) -> List[TransactionOutputDTO]:
@@ -90,20 +155,29 @@ class TransactionService:
                 amount = 0
                 currency = "EUR"
 
+                source_id = None
+                dest_id = None
+
                 if source_entry:
                     source_acc = self.uow.accounts.get(source_entry.account_id)
-                    if source_acc: source_name = source_acc.name
+                    if source_acc: 
+                        source_name = source_acc.name
+                        source_id = source_acc.id
                     amount = abs(source_entry.amount.amount)
                     currency = source_entry.amount.currency
                 
                 if dest_entry:
                     dest_acc = self.uow.accounts.get(dest_entry.account_id)
-                    if dest_acc: dest_name = dest_acc.name
+                    if dest_acc: 
+                        dest_name = dest_acc.name
+                        dest_id = dest_acc.id
                 
                 tag_names = []
+                tags_ids = []
                 if tx.tags_ids:
                     tags = [self.uow.tags.get(tid) for tid in tx.tags_ids]
                     tag_names = [t.name for t in tags if t]
+                    tags_ids = [t.id for t in tags if t]
 
                 output_list.append(TransactionOutputDTO(
                     id=tx.id,
@@ -112,6 +186,9 @@ class TransactionService:
                     amount=MoneySchema(amount=amount, currency=currency),
                     source_account_name=source_name,
                     destination_account_name=dest_name,
-                    tags=tag_names
+                    source_account_id=source_id,
+                    destination_account_id=dest_id,
+                    tags=tag_names,
+                    tags_ids=tags_ids
                 ))
             return output_list
