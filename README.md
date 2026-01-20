@@ -73,7 +73,7 @@ La estructura de `src/` refleja directamente las capas de la arquitectura:
     *   `persistence/repositories/`: Implementación real de los repositorios (ej: `SQLAlchemyAccountRepository`). Aquí ocurre la magia de SQL.
 *   **Regla:** Depende de `domain` (para devolver entidades) y `application` (para implementar interfaces).
 
-#### 4. `src/presentation/` (La Entrada)
+#### 4. `src/ui/` (La Entrada)
 *   **Qué es:** Lo que ve el usuario. En este caso, Dash.
 *   **Contenido:**
     *   `views/`: Componentes visuales y callbacks.

@@ -35,15 +35,57 @@ class AccountType(Enum):
 class Account:
     """
     Representa una cuenta en la aplicación de finanzas personales.
-    Cada cuenta tiene un identificador único, un nombre, un tipo y un saldo inicial.
+    Cada cuenta tiene un identificador único, un nombre, un tipo y un saldo.
+    
+    - initial_balance: Saldo registrado al crear la cuenta (referencia histórica).
+    - current_balance: Saldo actual calculado (initial_balance + todas las transacciones).
+      Se actualiza automáticamente con cada transacción para mejor rendimiento.
+    
+    Validaciones:
+    - ASSET (Activo): No puede tener saldo negativo (no puedes tener -500€ en efectivo).
+    - LIABILITY (Pasivo): No puede tener saldo negativo (si te deben dinero, es un activo).
     """
     id: UUID
     name: str
     type: AccountType
     initial_balance: Money = field(default_factory=Money.zero)
+    current_balance: Money = field(default_factory=Money.zero)  # Sincronizado con transacciones
     is_active: bool = True
     account_number: Optional[str] = None
     parent_account_id: Optional[UUID] = None  # Para cuentas jerárquicas
+    
+    def __post_init__(self):
+        """Valida el saldo según el tipo de cuenta."""
+        self._validate_balance()
+    
+    def _validate_balance(self):
+        """
+        Valida que el balance sea coherente con el tipo de cuenta.
+        
+        Raises:
+            ValueError: Si el balance no es válido para el tipo de cuenta.
+        """
+        # Validar saldo actual (current_balance)
+        if self.current_balance.amount < 0:
+            if self.type == AccountType.ASSET:
+                raise ValueError(
+                    f"Una cuenta de tipo ACTIVO '{self.name}' no puede tener saldo negativo. "
+                    f"Saldo actual: {self.current_balance.amount} {self.current_balance.currency}"
+                )
+            elif self.type == AccountType.LIABILITY:
+                raise ValueError(
+                    f"Una cuenta de tipo PASIVO '{self.name}' no puede tener saldo negativo. "
+                    f"Si te deben dinero, debería ser un ACTIVO, no un PASIVO. "
+                    f"Saldo actual: {self.current_balance.amount} {self.current_balance.currency}"
+                )
+        
+        # Validar saldo inicial también
+        if self.initial_balance.amount < 0:
+            if self.type in [AccountType.ASSET, AccountType.LIABILITY]:
+                raise ValueError(
+                    f"El saldo inicial de una cuenta '{self.name}' de tipo {self.type.value} "
+                    f"no puede ser negativo. Valor: {self.initial_balance.amount} {self.initial_balance.currency}"
+                )
 
 @dataclass(frozen=True)
 class AccountSearchCriteria:

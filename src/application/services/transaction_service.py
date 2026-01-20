@@ -1,8 +1,10 @@
 import uuid
 from typing import List
+from dataclasses import replace
 from src.application.dtos import TransactionEntryDTO, TransactionOutputDTO, MoneySchema
 from src.application.ports import AbstractUnitOfWork
 from src.domain.factories import TransactionFactory
+from src.domain.value_objects import Money
 
 class TransactionService:
     """
@@ -44,8 +46,29 @@ class TransactionService:
                 tags_ids=dto.tags_ids
             )
             
-            # 4. Persistencia
+            # 4. Persistencia de la transacción PRIMERO
+            # Así si falla la persistencia, no se modifican los balances
             self.uow.transactions.add(transaction)
+            
+            # 5. Actualizar current_balance de las cuentas afectadas
+            # Iterar sobre los apuntes de la transacción y actualizar saldos
+            for entry in transaction.entries:
+                account = self.uow.accounts.get(entry.account_id)
+                if not account:
+                    raise ValueError(f"Cuenta {entry.account_id} no encontrada al actualizar balance")
+                
+                # Validar consistencia de moneda
+                if account.current_balance.currency != entry.amount.currency:
+                    raise ValueError(f"Inconsistencia de moneda: cuenta usa {account.current_balance.currency}, transacción usa {entry.amount.currency}")
+                
+                # Sumar el apunte al saldo actual (amount puede ser positivo o negativo)
+                new_balance_amount = account.current_balance.amount + entry.amount.amount
+                new_current_balance = Money(amount=new_balance_amount, currency=account.current_balance.currency)
+                updated_account = replace(account, current_balance=new_current_balance)
+                self.uow.accounts.update(updated_account)
+            
+            # 6. Commit de TODO (transacción + balances actualizados)
+            # Si falla, el UoW hace rollback automático
             self.uow.commit()
 
             # 5. Devolvemos un DTO de salida
@@ -67,7 +90,7 @@ class TransactionService:
 
     def delete_transaction(self, transaction_id: str) -> None:
         """
-        Elimina una transacción del sistema.
+        Elimina una transacción del sistema y revierte los cambios en los balances.
         """
         with self.uow:
             # 1. Buscar Existente para validar que existe
@@ -76,10 +99,26 @@ class TransactionService:
                 # O podríamos lanzar error, o simplemente ignorar si ya no existe (idempotencia)
                  raise ValueError(f"Transacción {transaction_id} no encontrada")
             
-            # 2. Eliminar
-            # Dependiendo de la implementación del Repo, podría ser un hard delete.
-            # En repositories/transaction_repository.py, necesitamos un método delete.
+            # 2. Revertir cambios en current_balance ANTES de eliminar
+            for entry in existing_tx.entries:
+                account = self.uow.accounts.get(entry.account_id)
+                if not account:
+                    raise ValueError(f"Cuenta {entry.account_id} no encontrada al revertir balance")
+                
+                # Validar consistencia de moneda
+                if account.current_balance.currency != entry.amount.currency:
+                    raise ValueError(f"Inconsistencia de moneda al eliminar transacción")
+                
+                # Restar el apunte del saldo actual (inverso de la creación)
+                new_balance_amount = account.current_balance.amount - entry.amount.amount
+                new_current_balance = Money(amount=new_balance_amount, currency=account.current_balance.currency)
+                updated_account = replace(account, current_balance=new_current_balance)
+                self.uow.accounts.update(updated_account)
+            
+            # 3. Eliminar la transacción
             self.uow.transactions.delete(transaction_id)
+            
+            # 4. Commit de TODO
             self.uow.commit()
 
     def update_transaction(self, transaction_id: str, dto: TransactionEntryDTO) -> TransactionOutputDTO:
@@ -92,11 +131,28 @@ class TransactionService:
             if not existing_tx:
                 raise ValueError(f"Transacción {transaction_id} no encontrada")
 
-            # 2. Re-crear objeto dominio usando Factory (reciclando ID)
-            # Esto valida reglas de negocio de nuevo con los nuevos datos
+            # 2. Validar cuentas nuevas existen
             source_account = self.uow.accounts.get(dto.source_account_id)
             dest_account = self.uow.accounts.get(dto.destination_account_id)
+            if not source_account or not dest_account:
+                raise ValueError("Cuentas de origen o destino no encontradas")
 
+            # 3. Revertir balances de la transacción antigua
+            for entry in existing_tx.entries:
+                account = self.uow.accounts.get(entry.account_id)
+                if not account:
+                    raise ValueError(f"Cuenta {entry.account_id} no encontrada al revertir balance")
+                
+                if account.current_balance.currency != entry.amount.currency:
+                    raise ValueError(f"Inconsistencia de moneda al revertir")
+                
+                new_balance_amount = account.current_balance.amount - entry.amount.amount
+                new_current_balance = Money(amount=new_balance_amount, currency=account.current_balance.currency)
+                updated_account = replace(account, current_balance=new_current_balance)
+                self.uow.accounts.update(updated_account)
+            
+            # 4. Re-crear objeto dominio usando Factory (reciclando ID)
+            # Esto valida reglas de negocio de nuevo con los nuevos datos
             updated_tx = TransactionFactory.create_transaction(
                 description=dto.description,
                 amount=dto.amount.amount,
@@ -108,12 +164,26 @@ class TransactionService:
                 tags_ids=dto.tags_ids
             )
             # Forzamos el ID original para que sea un UPDATE en vez de INSERT
-            # Hack simple dado que la dataclass es 'frozen=False' por defecto (si no se especifica frozen=True)
-            # Pero en models.py Transaction NO es frozen (solo Entries y Accounts lo son), así que podemos asignar id.
             updated_tx.id = existing_tx.id
             
-            # 3. Persistir Cambios
+            # 5. Persistir transacción actualizada
             self.uow.transactions.update(updated_tx)
+            
+            # 6. Aplicar nuevos balances
+            for entry in updated_tx.entries:
+                account = self.uow.accounts.get(entry.account_id)
+                if not account:
+                    raise ValueError(f"Cuenta {entry.account_id} no encontrada al aplicar balance")
+                
+                if account.current_balance.currency != entry.amount.currency:
+                    raise ValueError(f"Inconsistencia de moneda: cuenta usa {account.current_balance.currency}, transacción usa {entry.amount.currency}")
+                
+                new_balance_amount = account.current_balance.amount + entry.amount.amount
+                new_current_balance = Money(amount=new_balance_amount, currency=account.current_balance.currency)
+                updated_account = replace(account, current_balance=new_current_balance)
+                self.uow.accounts.update(updated_account)
+            
+            # 7. Commit de TODO (transacción actualizada + balances)
             self.uow.commit()
 
             return TransactionOutputDTO(

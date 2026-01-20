@@ -30,11 +30,13 @@ class AccountService:
 
             # 2. Convertimos el DTO a una Entidad de Dominio
             # Generamos el ID aquí o dejamos que la DB lo haga (mejor aquí para UUIDs)
+            initial_money = Money(amount=dto.initial_balance.amount, currency=dto.initial_balance.currency)
             new_account = Account(
                 id=uuid.uuid4(),
                 name=dto.name,
                 type=dto.type,
-                initial_balance=Money(amount=dto.initial_balance.amount, currency=dto.initial_balance.currency),
+                initial_balance=initial_money,
+                current_balance=initial_money,  # Al crear, current_balance = initial_balance
                 is_active=dto.is_active,
                 account_number=dto.account_number,
                 parent_account_id=dto.parent_account_id
@@ -52,6 +54,7 @@ class AccountService:
                 name=new_account.name,
                 type=new_account.type,
                 initial_balance=MoneySchema(amount=new_account.initial_balance.amount, currency=new_account.initial_balance.currency),
+                current_balance=MoneySchema(amount=new_account.current_balance.amount, currency=new_account.current_balance.currency),
                 is_active=new_account.is_active,
                 account_number=new_account.account_number,
                 parent_account_id=new_account.parent_account_id
@@ -154,6 +157,7 @@ class AccountService:
                     name=acct.name,
                     type=acct.type,
                     initial_balance=MoneySchema(amount=acct.initial_balance.amount, currency=acct.initial_balance.currency),
+                    current_balance=MoneySchema(amount=acct.current_balance.amount, currency=acct.current_balance.currency),
                     is_active=acct.is_active,
                     account_number=acct.account_number,
                     parent_account_id=acct.parent_account_id

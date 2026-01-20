@@ -34,6 +34,7 @@ class AccountOutputDTO(BaseModel):
     name: str
     type: AccountType
     initial_balance: MoneySchema
+    current_balance: MoneySchema  # Saldo actualizado con transacciones
     is_active: bool
     account_number: Optional[str] = None
     parent_account_id: Optional[UUID4] = None

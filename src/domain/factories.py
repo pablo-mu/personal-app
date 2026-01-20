@@ -37,5 +37,8 @@ class TransactionFactory:
             related_transaction_id=related_transaction_id,
             tags_ids=tags_ids
         )
+        
+        # Validar integridad de partida doble antes de devolver
+        transaction.validate()
 
         return transaction

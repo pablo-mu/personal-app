@@ -1,6 +1,6 @@
 from dash import Dash, html, dcc, Input, Output
 import dash_bootstrap_components as dbc
-from src.ui.views import tracking_view, budgets_view, recurring_view, accounts_view, categories_view, tags_view, transactions_config_view
+from src.ui import views
 from src.application.container import Services
 
 # --- STYLES ---
@@ -29,7 +29,7 @@ def init_dashboard(server, services: Services):
         __name__, 
         server=server, 
         url_base_pathname='/', 
-        title="Firefly Simple PFM", 
+        title="Mi Finanza", 
         suppress_callback_exceptions=True,
         external_stylesheets=[dbc.themes.BOOTSTRAP] # Use Bootstrap Theme
     )
@@ -43,6 +43,9 @@ def init_dashboard(server, services: Services):
                 [
                     dbc.NavLink("📝 Seguimiento Diario", href="/", active="exact"),
                     html.Hr(),
+                    html.Div("Dashboard", className="text-muted small fw-bold mb-2"),
+                    dbc.NavLink("📊 Resumen", href="/summary", active="exact"),
+                    html.Hr(),
                     html.Div("PLANIFICACIÓN", className="text-muted small fw-bold mb-2"),
                     dbc.NavLink("🎯 Objetivos", href="/budgets", active="exact"),
                     dbc.NavLink("📅 Recurrencia", href="/recurring", active="exact"),
@@ -52,6 +55,9 @@ def init_dashboard(server, services: Services):
                     dbc.NavLink("💳 Cuentas", href="/accounts", active="exact"),
                     dbc.NavLink("🛒 Categorías", href="/categories", active="exact"),
                     dbc.NavLink("🏷️ Etiquetas", href="/tags", active="exact"),
+                    html.Hr(),
+                    html.Div("INFORMACIÓN", className="text-muted small fw-bold mb-2"),
+                    dbc.NavLink("ℹ️ Acerca de", href="/about", active="exact"),
                 ],
                 vertical=True,
                 pills=True,
@@ -65,29 +71,33 @@ def init_dashboard(server, services: Services):
     app.layout = html.Div([dcc.Location(id="url"), sidebar, content])
 
     # --- REGISTER CALLBACKS ---
-    tracking_view.register_callbacks(app, services.account, services.transaction, services.tag)
-    transactions_config_view.register_callbacks(app, services.transaction, services.account, services.tag)
-    accounts_view.register_callbacks(app, services.account)
-    categories_view.register_callbacks(app, services.account)
-    tags_view.register_callbacks(app, services.tag)
+    views.register_tracking_callbacks(app, services.account, services.transaction, services.tag)
+    views.register_transactions_callbacks(app, services.transaction, services.account, services.tag)
+    views.register_accounts_callbacks(app, services.account)
+    views.register_categories_callbacks(app, services.account)
+    views.register_tags_callbacks(app, services.tag)
 
     # --- ROUTING CALLBACK ---
     @app.callback(Output("page-content", "children"), [Input("url", "pathname")])
     def render_page_content(pathname):
         if pathname == "/" or pathname == "/daily":
-            return tracking_view.layout_daily()
+            return views.layout_daily()
         elif pathname == "/config/transactions":
-            return transactions_config_view.layout_transactions_config()
+            return views.layout_transactions_config()
+        elif pathname == "/summary":
+            return views.layout_summary()
         elif pathname == "/budgets":
-            return budgets_view.layout_budgets()
+            return views.layout_budgets()
         elif pathname == "/recurring":
-            return recurring_view.layout_recurring()
+            return views.layout_recurring()
         elif pathname == "/accounts":
-            return accounts_view.layout_accounts()
+            return views.layout_accounts()
         elif pathname == "/categories":
-            return categories_view.layout_categories()
+            return views.layout_categories()
         elif pathname == "/tags":
-            return tags_view.layout_tags()
+            return views.layout_tags()
+        elif pathname == "/about":
+            return views.layout_about()
         
         return html.Div(
             dbc.Container(

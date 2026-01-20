@@ -33,7 +33,8 @@ def layout_transactions_config():
     """
     return html.Div([
         # Store auxiliar para señales de refresco entre componentes
-        dcc.Store(id='store-refresh-trigger-tx', data=0), 
+        dcc.Store(id='store-refresh-trigger-tx', data=0),
+        dcc.Store(id='store-filters-tx', data={}),  # Almacena los filtros aplicados
         
         # Título y encabezado
         html.H2("📋 Gestión de Movimientos", style={'color': '#34495e'}),
@@ -45,6 +46,7 @@ def layout_transactions_config():
             dbc.Col(dbc.Button("➕ Añadir Movimiento", color="primary", id='btn-add-tx-config', n_clicks=0), width="auto"),
             dbc.Col(dbc.Button("✏️ Editar", id='btn-edit-tx-config', color="warning", disabled=True, n_clicks=0), width="auto"),
             dbc.Col(dbc.Button("🗑️ Eliminar Seleccionados", id='btn-delete-tx-config', color="danger", disabled=True, n_clicks=0), width="auto"),
+            dbc.Col(dbc.Button("🔬Filtros", id='btn-filters-tx-config', color="info", n_clicks=0), width="auto"),
             dbc.Col(dbc.Button("🔄 Actualizar", id='btn-refresh-tx-config', color="secondary", n_clicks=0), width="auto"),
         ], className="mb-3 g-2"),
 
@@ -145,6 +147,69 @@ def layout_transactions_config():
             ])
         ], id="modal-tx-config", is_open=False, size="lg"),
 
+        # Modal de Filtros
+        dbc.Modal([
+            dbc.ModalHeader(html.H4("🔍 Filtrar Transacciones")),
+            dbc.ModalBody([
+                # Fila 1: Cuentas
+                html.Div([
+                    html.Div([
+                        html.Label("Cuenta Origen:", style={'fontWeight': 'bold'}),
+                        dcc.Dropdown(id='filter-tx-source', placeholder="Todas...", clearable=True, style={'width': '100%'}),
+                    ], style={'flex': '1'}),
+                    
+                    html.Div([
+                        html.Label("Cuenta Destino:", style={'fontWeight': 'bold'}),
+                        dcc.Dropdown(id='filter-tx-dest', placeholder="Todas...", clearable=True, style={'width': '100%'}),
+                    ], style={'flex': '1'}),
+                ], style={'display': 'flex', 'gap': '15px', 'marginBottom': '15px'}),
+                
+                # Fila 2: Rango de Montos
+                html.Div([
+                    html.Div([
+                        html.Label("Monto Mínimo (€):", style={'fontWeight': 'bold'}),
+                        dbc.Input(id='filter-tx-amount-min', type='number', placeholder="0.00", step=0.01, style={'width': '100%', 'padding': '8px'}),
+                    ], style={'flex': '1'}),
+                    
+                    html.Div([
+                        html.Label("Monto Máximo (€):", style={'fontWeight': 'bold'}),
+                        dbc.Input(id='filter-tx-amount-max', type='number', placeholder="Sin límite", step=0.01, style={'width': '100%', 'padding': '8px'}),
+                    ], style={'flex': '1'}),
+                ], style={'display': 'flex', 'gap': '15px', 'marginBottom': '15px'}),
+                
+                # Fila 3: Rango de Fechas y Tags
+                html.Div([
+                    html.Div([
+                        html.Label("Rango de Fechas:", style={'fontWeight': 'bold'}),
+                        dcc.DatePickerRange(
+                            id='filter-tx-date-range',
+                            min_date_allowed=datetime(2020, 1, 1),
+                            max_date_allowed=datetime(2030, 12, 31),
+                            start_date=None,
+                            end_date=None,
+                            style={'width': '100%'}
+                        ),
+                    ], style={'flex': '1'}),
+                    
+                    html.Div([
+                        html.Label("Etiquetas:", style={'fontWeight': 'bold'}),
+                        dcc.Dropdown(id='filter-tx-tags', multi=True, placeholder="Cualquiera...", style={'width': '100%'}),
+                    ], style={'flex': '1'}),
+                ], style={'display': 'flex', 'gap': '15px', 'marginBottom': '15px'}),
+                
+                # Fila 4: Descripción
+                html.Div([
+                    html.Label("Buscar en Descripción:", style={'fontWeight': 'bold'}),
+                    dbc.Input(id='filter-tx-description', type='text', placeholder='Texto a buscar...', style={'width': '100%', 'padding': '8px'}),
+                ], style={'marginBottom': '15px'}),
+            ]),
+            dbc.ModalFooter([
+                dbc.Button("Limpiar Filtros", id="btn-clear-filters-tx", color="secondary", n_clicks=0),
+                dbc.Button("Cancelar", id="btn-cancel-filters-tx", className="ms-auto", n_clicks=0),
+                dbc.Button("Aplicar", id="btn-apply-filters-tx", color="primary", n_clicks=0),
+            ])
+        ], id="modal-filters-tx", is_open=False, size="lg"),
+
         # Div auxiliar (invisible) para outputs de callbacks que no requieren feedback visual directo
         html.Div(id='msg-tx-config-result', style={'display': 'none'})
     ])
@@ -167,17 +232,54 @@ def register_callbacks(app, transaction_service: TransactionService, account_ser
         Input('url', 'pathname'),
         Input('btn-confirm-delete', 'n_clicks'), # Refrescar tras borrar
         Input('store-refresh-trigger-tx', 'data'), # Refrescar tras guardar edición/creación
+        Input('store-filters-tx', 'data'),  # Refrescar tras aplicar filtros
         State('table-transactions-config', 'data')
     )
-    def update_table(n_refresh, pathname, n_delete, n_signal, current_data):
+    def update_table(n_refresh, pathname, n_delete, n_signal, filters, current_data):
         """
-        Carga la lista de transacciones en la tabla.
+        Carga la lista de transacciones en la tabla aplicando los filtros activos.
         Incluye datos ocultos (raw_...) para facilitar la edición posterior sin re-consultar al backend.
         """
         if pathname != '/config/transactions':
              return no_update
              
         txs = transaction_service.list_transactions()
+        
+        # Aplicar filtros
+        if filters:
+            # Filtro por fecha
+            if filters.get('start_date'):
+                start = datetime.strptime(filters['start_date'], "%Y-%m-%d").date()
+                txs = [t for t in txs if t.date.date() >= start]
+            
+            if filters.get('end_date'):
+                end = datetime.strptime(filters['end_date'], "%Y-%m-%d").date()
+                txs = [t for t in txs if t.date.date() <= end]
+            
+            # Filtro por cuenta origen
+            if filters.get('source'):
+                txs = [t for t in txs if str(t.source_account_id) == filters['source']]
+            
+            # Filtro por cuenta destino
+            if filters.get('dest'):
+                txs = [t for t in txs if str(t.destination_account_id) == filters['dest']]
+            
+            # Filtro por tags
+            if filters.get('tags'):
+                filter_tag_ids = set(filters['tags'])
+                txs = [t for t in txs if any(str(tid) in filter_tag_ids for tid in t.tags_ids)]
+            
+            # Filtro por monto
+            if filters.get('min_amount') is not None:
+                txs = [t for t in txs if float(t.amount.amount) >= filters['min_amount']]
+            
+            if filters.get('max_amount') is not None:
+                txs = [t for t in txs if float(t.amount.amount) <= filters['max_amount']]
+            
+            # Filtro por descripción
+            if filters.get('description'):
+                search_text = filters['description'].lower()
+                txs = [t for t in txs if search_text in t.description.lower()]
         
         data = []
         for t in txs:
@@ -287,6 +389,81 @@ def register_callbacks(app, transaction_service: TransactionService, account_ser
         tag_options = [{'label': t.name, 'value': str(t.id)} for t in tags]
         
         return acc_options, acc_options, tag_options
+
+    # 5b. CARGAR OPCIONES DEL MODAL DE FILTROS
+    @app.callback(
+        Output('filter-tx-source', 'options'),
+        Output('filter-tx-dest', 'options'),
+        Output('filter-tx-tags', 'options'),
+        Input('btn-filters-tx-config', 'n_clicks'),
+        prevent_initial_call=True
+    )
+    def populate_filter_options(n_clicks):
+        """
+        Carga las opciones de los desplegables del modal de filtros.
+        """
+        if not n_clicks:
+            return no_update, no_update, no_update
+            
+        accounts = account_service.list_accounts()
+        tags = tag_service.list_tags()
+        
+        acc_options = [{'label': a.name, 'value': str(a.id)} for a in accounts]
+        tag_options = [{'label': t.name, 'value': str(t.id)} for t in tags]
+        
+        return acc_options, acc_options, tag_options
+
+    # 5c. CONTROL DEL MODAL DE FILTROS
+    @app.callback(
+        Output("modal-filters-tx", "is_open"),
+        Input("btn-filters-tx-config", "n_clicks"),
+        Input("btn-cancel-filters-tx", "n_clicks"),
+        Input("btn-apply-filters-tx", "n_clicks"),
+        State("modal-filters-tx", "is_open"),
+    )
+    def toggle_filters_modal(n_open, n_cancel, n_apply, is_open):
+        """Controla la apertura/cierre del modal de filtros."""
+        if n_open or n_cancel or n_apply:
+            return not is_open
+        return is_open
+
+    # 5d. GUARDAR FILTROS
+    @app.callback(
+        Output('store-filters-tx', 'data'),
+        Input('btn-apply-filters-tx', 'n_clicks'),
+        Input('btn-clear-filters-tx', 'n_clicks'),
+        State('filter-tx-date-range', 'start_date'),
+        State('filter-tx-date-range', 'end_date'),
+        State('filter-tx-source', 'value'),
+        State('filter-tx-dest', 'value'),
+        State('filter-tx-tags', 'value'),
+        State('filter-tx-amount-min', 'value'),
+        State('filter-tx-amount-max', 'value'),
+        State('filter-tx-description', 'value'),
+        prevent_initial_call=True
+    )
+    def save_filters(n_apply, n_clear, start_date, end_date, source, dest, tags, min_amount, max_amount, description):
+        """
+        Guarda los filtros aplicados o los limpia.
+        """
+        triggered_id = ctx.triggered_id
+        
+        if triggered_id == 'btn-clear-filters-tx':
+            return {}
+        
+        if triggered_id == 'btn-apply-filters-tx':
+            return {
+                'start_date': start_date,
+                'end_date': end_date,
+                'source': source,
+                'dest': dest,
+                'tags': tags or [],
+                'min_amount': min_amount,
+                'max_amount': max_amount,
+                'description': description
+            }
+        
+        return no_update
 
     # 6. MODAL DE EDICIÓN/CREACIÓN (Abrir y Rellenar)
     @app.callback(
