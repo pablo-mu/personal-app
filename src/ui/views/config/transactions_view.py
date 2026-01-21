@@ -43,12 +43,31 @@ def layout_transactions_config():
         
         # Barra de Botones (Toolbar)
         dbc.Row([
-            dbc.Col(dbc.Button("➕ Añadir Movimiento", color="primary", id='btn-add-tx-config', n_clicks=0), width="auto"),
-            dbc.Col(dbc.Button("✏️ Editar", id='btn-edit-tx-config', color="warning", disabled=True, n_clicks=0), width="auto"),
-            dbc.Col(dbc.Button("🗑️ Eliminar Seleccionados", id='btn-delete-tx-config', color="danger", disabled=True, n_clicks=0), width="auto"),
-            dbc.Col(dbc.Button("🔬Filtros", id='btn-filters-tx-config', color="info", n_clicks=0), width="auto"),
-            dbc.Col(dbc.Button("🔄 Actualizar", id='btn-refresh-tx-config', color="secondary", n_clicks=0), width="auto"),
-        ], className="mb-3 g-2"),
+            dbc.Col([
+                dbc.Button(html.I(className="bi bi-plus-circle"), color="secondary", outline=True, id='btn-add-tx-config', n_clicks=0, className="btn-sm"),
+                dbc.Tooltip("Añadir Movimiento", target="btn-add-tx-config", placement="top"),
+            ], width="auto"),
+            dbc.Col([
+                html.Span([
+                    dbc.Button(html.I(className="bi bi-pencil"), id='btn-edit-tx-config', color="secondary", outline=True, disabled=True, n_clicks=0, className="btn-sm"),
+                ], id="wrapper-edit-tx"),
+                dbc.Tooltip("Editar (selecciona 1 movimiento)", target="wrapper-edit-tx", placement="top"),
+            ], width="auto"),
+            dbc.Col([
+                html.Span([
+                    dbc.Button(html.I(className="bi bi-trash"), id='btn-delete-tx-config', color="secondary", outline=True, disabled=True, n_clicks=0, className="btn-sm"),
+                ], id="wrapper-delete-tx"),
+                dbc.Tooltip("Eliminar (selecciona movimientos)", target="wrapper-delete-tx", placement="top"),
+            ], width="auto"),
+            dbc.Col([
+                dbc.Button(html.I(className="bi bi-funnel"), id='btn-filters-tx-config', color="secondary", outline=True, n_clicks=0, className="btn-sm"),
+                dbc.Tooltip("Filtros", target="btn-filters-tx-config", placement="top"),
+            ], width="auto"),
+            dbc.Col([
+                dbc.Button(html.I(className="bi bi-arrow-clockwise"), id='btn-refresh-tx-config', color="secondary", outline=True, n_clicks=0, className="btn-sm"),
+                dbc.Tooltip("Actualizar", target="btn-refresh-tx-config", placement="top"),
+            ], width="auto"),
+        ], className="mb-3 g-3"),
 
         # Tabla Principal de Datos
         dash_table.DataTable(
@@ -487,7 +506,7 @@ def register_callbacks(app, transaction_service: TransactionService, account_ser
         State("table-transactions-config", "data"),
         State("modal-tx-config", "is_open")
     )
-    def toggle_edit_modal(n_add, n_edit, n_cancel, n_signal, selected_rows, data, is_open):
+    def toggle_edit_modal(_, __, ___, _____, selected_rows, data, is_open):
         """
         Gestiona la apertura el modal de edición/creación.
         Si es Editar: Rellena los campos con los datos RAW de la fila seleccionada.

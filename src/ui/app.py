@@ -31,7 +31,10 @@ def init_dashboard(server, services: Services):
         url_base_pathname='/', 
         title="Mi Finanza", 
         suppress_callback_exceptions=True,
-        external_stylesheets=[dbc.themes.BOOTSTRAP] # Use Bootstrap Theme
+        external_stylesheets=[
+            dbc.themes.BOOTSTRAP,
+            "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+        ]
     )
 
     # --- COMPONENTS ---

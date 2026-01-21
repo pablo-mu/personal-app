@@ -86,7 +86,7 @@ La estructura de `src/` refleja directamente las capas de la arquitectura:
 Para entender cómo se orquesta todo, sigamos el viaje de una búsqueda desde que el usuario hace clic hasta que ve los resultados.
 
 1.  **UI (Mundo Exterior)**:
-    *   El usuario escribe "Ahorro" en el buscador de Dash (`presentation`).
+    *   El usuario escribe "Ahorro" en el buscador de Dash (`ui`).
     *   Se crea un **DTO** de entrada: `AccountFilterDTO(name_contains="Ahorro")`.
 
 2.  **Servicio (Traductor)**:
