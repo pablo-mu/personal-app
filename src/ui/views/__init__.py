@@ -22,8 +22,7 @@ from .planning import layout_budgets, layout_recurring
 from .config import (
     layout_transactions_config, register_transactions_callbacks,
     layout_accounts, register_accounts_callbacks,
-    layout_categories, register_categories_callbacks,
-    layout_tags, register_tags_callbacks
+    layout_categories, register_categories_callbacks
 )
 
 # Info
@@ -43,7 +42,6 @@ __all__ = [
     'layout_transactions_config', 'register_transactions_callbacks',
     'layout_accounts', 'register_accounts_callbacks',
     'layout_categories', 'register_categories_callbacks',
-    'layout_tags', 'register_tags_callbacks',
     
     # Info
     'layout_about'

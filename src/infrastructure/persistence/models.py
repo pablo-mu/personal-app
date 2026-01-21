@@ -31,9 +31,8 @@ class TagModel(Base):
     __tablename__ = "tags"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    name = Column(String, nullable=False)
-    color = Column(String(7), nullable=True)  # Color en formato hexadecimal
-    icon = Column(String, nullable=True)      # Nombre del icono
+    name = Column(String, nullable=False, unique=True)  # UNIQUE constraint
+    color = Column(String(7), nullable=False, default="#a8a8a8")  # Color hexadecimal obligatorio
 
     # Relación
     transactions = relationship(

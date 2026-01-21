@@ -16,18 +16,17 @@ class TagService:
             new_tag = Tag(
                 id=uuid.uuid4(),
                 name=dto.name,
-                color=dto.color,
-                icon=dto.icon
+                color=dto.color
             )
             self.uow.tags.add(new_tag)
             self.uow.commit()
             
-            return TagDTO(id=new_tag.id, name=new_tag.name, color=new_tag.color, icon=new_tag.icon)
+            return TagDTO(id=new_tag.id, name=new_tag.name, color=new_tag.color)
 
     def list_tags(self) -> List[TagDTO]:
         with self.uow:
             tags = self.uow.tags.list()
             return [
-                TagDTO(id=t.id, name=t.name, color=t.color, icon=t.icon) 
+                TagDTO(id=t.id, name=t.name, color=t.color) 
                 for t in tags
             ]

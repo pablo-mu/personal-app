@@ -101,8 +101,7 @@ class TransactionOutputDTO(BaseModel):
 class TagDTO(BaseModel):
     """ DTO para Etiquetas (Sirve para entrada y salida) """
     id: Optional[UUID4] = None # Opcional al crear, obligatorio al leer
-    name: str
-    color: str = "#FFFFFF"
-    icon: Optional[str] = None
+    name: str  # Debe ser único
+    color: str = "#a8a8a8"  # Color hexadecimal, por defecto azul
 
     model_config = {"from_attributes": True}

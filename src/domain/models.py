@@ -102,11 +102,11 @@ class AccountSearchCriteria:
 class Tag:
     """
     Representa una etiqueta para categorizar transacciones.
+    El nombre debe ser único en el sistema.
     """
     id: UUID
-    name: str
-    color: Optional[str] = None  # Color en formato hexadecimal, e.g., "#FF5733"
-    icon: Optional[str] = None   # Nombre del icono, e.g., "shopping-cart"
+    name: str  # UNIQUE constraint en BD
+    color: str = "#a8a8a8"  # Color en formato hexadecimal, por defecto azul
 
 @dataclass(frozen = True)
 class TransactionEntry:

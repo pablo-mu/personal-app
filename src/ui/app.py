@@ -57,7 +57,6 @@ def init_dashboard(server, services: Services):
                     dbc.NavLink("📋 Movimientos", href="/config/transactions", active="exact"),
                     dbc.NavLink("💳 Cuentas", href="/accounts", active="exact"),
                     dbc.NavLink("🛒 Categorías", href="/categories", active="exact"),
-                    dbc.NavLink("🏷️ Etiquetas", href="/tags", active="exact"),
                     html.Hr(),
                     html.Div("INFORMACIÓN", className="text-muted small fw-bold mb-2"),
                     dbc.NavLink("ℹ️ Acerca de", href="/about", active="exact"),
@@ -78,7 +77,6 @@ def init_dashboard(server, services: Services):
     views.register_transactions_callbacks(app, services.transaction, services.account, services.tag)
     views.register_accounts_callbacks(app, services.account)
     views.register_categories_callbacks(app, services.account)
-    views.register_tags_callbacks(app, services.tag)
 
     # --- ROUTING CALLBACK ---
     @app.callback(Output("page-content", "children"), [Input("url", "pathname")])
@@ -97,8 +95,6 @@ def init_dashboard(server, services: Services):
             return views.layout_accounts()
         elif pathname == "/categories":
             return views.layout_categories()
-        elif pathname == "/tags":
-            return views.layout_tags()
         elif pathname == "/about":
             return views.layout_about()
         
