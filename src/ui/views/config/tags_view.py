@@ -27,10 +27,16 @@ def layout_tags():
 
         # Botonera
         dbc.Row([
-            dbc.Col(dbc.Button("➕ Nueva Etiqueta", color="info", id='btn-add-tag'), width="auto"),
-            dbc.Col(dbc.Input(type="text", placeholder="Buscar etiqueta..."), width=3),
-            dbc.Col(dbc.Button("🔄 Actualizar", id='btn-refresh-tags', color="secondary"), width="auto"),
-        ], className="mb-3"),
+            dbc.Col([
+                dbc.Button(html.I(className="bi bi-plus-circle"), color="secondary", outline=True, id='btn-add-tag', className="btn-sm"),
+                dbc.Tooltip("Nueva Etiqueta", target="btn-add-tag", placement="top"),
+            ], width="auto"),
+            dbc.Col(dbc.Input(type="text", placeholder="Buscar etiqueta...", size="sm"), width=3),
+            dbc.Col([
+                dbc.Button(html.I(className="bi bi-arrow-clockwise"), id='btn-refresh-tags', color="secondary", outline=True, className="btn-sm"),
+                dbc.Tooltip("Actualizar", target="btn-refresh-tags", placement="top"),
+            ], width="auto"),
+        ], className="mb-3 g-2"),
 
         # Tabla de etiquetas
         dash_table.DataTable(

@@ -28,10 +28,16 @@ def layout_categories():
 
         # Botonera
         dbc.Row([
-            dbc.Col(dbc.Button("➕ Nueva Categoría", color="success", id='btn-add-category'), width="auto"),
-            dbc.Col(dbc.Input(type="text", placeholder="Buscar categoría..."), width=3),
-            dbc.Col(dbc.Button("🔄 Actualizar", id='btn-refresh-categories', color="secondary"), width="auto"),
-        ], className="mb-3"),
+            dbc.Col([
+                dbc.Button(html.I(className="bi bi-plus-circle"), color="secondary", outline=True, id='btn-add-category', className="btn-sm"),
+                dbc.Tooltip("Nueva Categoría", target="btn-add-category", placement="top"),
+            ], width="auto"),
+            dbc.Col(dbc.Input(type="text", placeholder="Buscar categoría...", size="sm"), width=3),
+            dbc.Col([
+                dbc.Button(html.I(className="bi bi-arrow-clockwise"), id='btn-refresh-categories', color="secondary", outline=True, className="btn-sm"),
+                dbc.Tooltip("Actualizar", target="btn-refresh-categories", placement="top"),
+            ], width="auto"),
+        ], className="mb-3 g-2"),
 
         # Tabla de categorías
         dash_table.DataTable(

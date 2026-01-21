@@ -34,7 +34,10 @@ def layout_recurring():
                     dbc.Col([dbc.Label("Concepto"), dbc.Input(placeholder="Ej: Netflix")], width=4),
                     dbc.Col([dbc.Label("Monto"), dbc.Input(type="number")], width=2),
                     dbc.Col([dbc.Label("Día Pago"), dbc.Input(type="number", min=1, max=31)], width=2),
-                    dbc.Col([dbc.Button("Añadir", color="primary", className="mt-4")], width=2)
+                    dbc.Col([
+                        dbc.Button(html.I(className="bi bi-plus-circle"), color="secondary", outline=True, className="mt-4 btn-sm", id="btn-add-recurring"),
+                        dbc.Tooltip("Añadir regla recurrente", target="btn-add-recurring", placement="top"),
+                    ], width="auto")
                 ])
             ])
         ]),

@@ -35,8 +35,9 @@ def layout_budgets():
                 dbc.Input(id='budget-amount', type='number', placeholder="300")
             ], width=3),
             dbc.Col([
-                dbc.Button("Guardar Objetivo", color="warning", className="mt-4")
-            ], width=2)
+                dbc.Button(html.I(className="bi bi-save"), color="secondary", outline=True, className="mt-4 btn-sm", id="btn-save-budget"),
+                dbc.Tooltip("Guardar Objetivo", target="btn-save-budget", placement="top"),
+            ], width="auto")
         ], className="mb-4"),
         
         # Placeholder para futura funcionalidad de gráficas

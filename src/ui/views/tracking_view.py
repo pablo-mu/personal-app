@@ -30,12 +30,29 @@ def layout_daily():
         html.Hr(),
         
         # --- COMMAND BAR (Botonera de Acciones Rápidas) ---
-        html.Div([
-                html.Button('📉 Nuevo Gasto', id='btn-mode-expense', n_clicks=0, style={'backgroundColor': '#e74c3c', 'color': 'white', 'border': 'none', 'padding': '15px', 'borderRadius': '5px', 'fontWeight': 'bold', 'cursor': 'pointer', 'marginRight': '10px'}),
-                html.Button('📈 Nuevo Ingreso', id='btn-mode-income', n_clicks=0, style={'backgroundColor': '#27ae60', 'color': 'white', 'border': 'none', 'padding': '15px', 'borderRadius': '5px', 'fontWeight': 'bold', 'cursor': 'pointer', 'marginRight': '10px'}),
-                html.Button('↔️ Transferencia', id='btn-mode-transfer', n_clicks=0, style={'backgroundColor': '#3498db', 'color': 'white', 'border': 'none', 'padding': '15px', 'borderRadius': '5px', 'fontWeight': 'bold', 'cursor': 'pointer'}),
-                # html.Button('🔄️ Devolución', ...), # Pendiente futura implementación
-        ], style={'marginBottom': '20px'}), 
+        dbc.Row([
+            dbc.Col([
+                dbc.Button([
+                    html.I(className="bi bi-dash-circle me-2"),
+                    "Nuevo Gasto"
+                ], id='btn-mode-expense', color="danger", outline=True, n_clicks=0, className="btn-sm"),
+                dbc.Tooltip("Registrar un gasto", target="btn-mode-expense", placement="top"),
+            ], width="auto"),
+            dbc.Col([
+                dbc.Button([
+                    html.I(className="bi bi-plus-circle me-2"),
+                    "Nuevo Ingreso"
+                ], id='btn-mode-income', color="success", outline=True, n_clicks=0, className="btn-sm"),
+                dbc.Tooltip("Registrar un ingreso", target="btn-mode-income", placement="top"),
+            ], width="auto"),
+            dbc.Col([
+                dbc.Button([
+                    html.I(className="bi bi-arrow-left-right me-2"),
+                    "Transferencia"
+                ], id='btn-mode-transfer', color="primary", outline=True, n_clicks=0, className="btn-sm"),
+                dbc.Tooltip("Transferir entre cuentas", target="btn-mode-transfer", placement="top"),
+            ], width="auto"),
+        ], className="mb-3 g-2"), 
 
         # --- FORMULARIO DINÁMICO (Oculto por defecto) ---
         html.Div(id='transaction-form-container', style={'display': 'none'}, children=[
@@ -102,8 +119,15 @@ def layout_daily():
         html.Hr(),
         
         # --- Listado de Últimos Movimientos ---
-        html.H3("⏱️ Últimos Movimientos"),
-        html.Button('🔄 Actualizar Lista', id='btn-refresh-tx', n_clicks=0),
+        dbc.Row([
+            dbc.Col(html.H3("Últimos Movimientos"), width="auto"),
+            #Espacio en blanco para separar
+            dbc.Col([], width="auto", style={'flex': '1'}),
+            dbc.Col([
+                dbc.Button(html.I(className="bi bi-arrow-clockwise"), id='btn-refresh-tx', color="secondary", outline=True, n_clicks=0, className="btn-sm"),
+                dbc.Tooltip("Actualizar lista de movimientos", target="btn-refresh-tx", placement="top"),
+            ], width="auto"),
+        ], className="mb-3 g-2 align-items-center"),
         html.Div(id='table-transactions', style={'marginTop': '10px'})
     ])
 
@@ -419,37 +443,37 @@ def register_callbacks(app, account_service, transaction_service, tag_service):
             item_content = dbc.Row([
                 # Columna 1: Fecha (Día/Mes)
                 dbc.Col([
-                    html.Div(tx.date.strftime('%d'), className="fw-bold", style={'fontSize': '1.1em', 'lineHeight': '1'}),
-                    html.Small(tx.date.strftime('%b'), className="text-muted", style={'textTransform': 'uppercase', 'fontSize': '0.75em'})
-                ], width=1, className="d-flex flex-column align-items-center justify-content-center border-end"),
+                    html.Div(tx.date.strftime('%d'), className="fw-bold", style={'fontSize': '1.2em', 'lineHeight': '1'}),
+                    html.Small(tx.date.strftime('%b'), className="text-muted text-uppercase", style={'fontSize': '0.7em', 'letterSpacing': '0.5px'})
+                ], width=1, className="d-flex flex-column align-items-center justify-content-center border-end px-2"),
                 
                 # Columna 2: Detalles (Cuentas + Descripción + Tags)
                 dbc.Col([
                     html.Div([
                         html.Span(tx.source_account_name, className="fw-bold text-dark"),
-                        html.Span(" ➤ ", className="text-muted mx-1", style={'fontSize': '0.8em'}),
+                        html.Span(" → ", className="text-muted mx-1"),
                         html.Span(tx.destination_account_name, className="fw-bold text-dark"),
-                    ], style={'fontSize': '0.95em', 'whiteSpace': 'nowrap', 'overflow': 'hidden', 'textOverflow': 'ellipsis'}),
+                    ], className="mb-1", style={'fontSize': '0.95em'}),
                     
                     html.Div([
-                        html.Small(tx.description if tx.description else "Manage...", className="text-secondary me-2", style={'fontStyle': 'italic'}),
+                        html.Small(tx.description if tx.description else "Sin descripción", className="text-secondary fst-italic me-2"),
                         *tags_badges
-                    ], style={'fontSize': '0.85em', 'marginTop': '2px'})
-                ], width=8, className="ps-3"),
+                    ], style={'fontSize': '0.85em'})
+                ], width=7, className="ps-3 d-flex flex-column justify-content-center"),
                 
                 # Columna 3: Monto y Acción
                 dbc.Col([
-                    html.Div(f"{tx.amount.amount:,.2f} €", className="fw-bold text-end", style={'fontSize': '1.1em', 'color': '#2c3e50'}),
+                    html.Div(f"{tx.amount.amount:,.2f} €", className="fw-bold me-3", style={'fontSize': '1.1em', 'color': '#2c3e50'}),
                     dbc.Button(
-                        "✏️", 
+                        html.I(className="bi bi-pencil"), 
                         id={'type': 'btn-edit-tx', 'index': str(tx.id)},
-                        color="light",
-                        size="sm",
-                        className="position-absolute",
-                        style={'top': '50%', 'right': '-10px', 'transform': 'translateY(-50%)', 'border': 'none', 'background': 'transparent'}
-                    )
-                ], width=3, className="d-flex flex-column justify-content-center position-relative pe-4")
-            ], className="g-0")
+                        color="secondary",
+                        outline=True,
+                        size="sm"
+                    ),
+                    dbc.Tooltip("Editar transacción", target={'type': 'btn-edit-tx', 'index': str(tx.id)}, placement="top"),
+                ], width=4, className="d-flex align-items-center justify-content-end pe-3")
+            ], className="g-0 align-items-center")
             
             list_items.append(dbc.ListGroupItem(item_content, className="py-2 action-item"))
 
