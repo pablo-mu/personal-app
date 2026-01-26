@@ -74,33 +74,37 @@ def layout_categories():
             row_selectable='multi',
             selected_rows=[],
             page_current=0,
-            page_size=20,
+            page_size=25,
             page_action='native',
             sort_action='native',
             sort_mode='single',
             style_table={'overflowX': 'auto'},
             style_cell={
                 'textAlign': 'left',
-                'padding': '12px',
-                'fontSize': '14px'
+                'padding': '8px 12px',
+                'fontSize': '0.9rem',
+                'fontFamily': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial'
             },
             style_header={
-                'backgroundColor': '#f8f9fa',
-                'fontWeight': 'bold',
-                'border': '1px solid #dee2e6'
+                'backgroundColor': 'rgb(250, 250, 250)',
+                'fontWeight': '600',
+                'fontSize': '0.85rem',
+                'color': '#2c3e50',
+                'borderBottom': '2px solid #dee2e6',
+                'padding': '10px 12px'
             },
             style_data_conditional=[
-                # Filas alternas
-                {'if': {'row_index': 'odd'}, 'backgroundColor': 'rgb(248, 248, 248)'},
+                {'if': {'row_index': 'odd'}, 'backgroundColor': 'rgb(252, 252, 252)'},
+                {'if': {'state': 'selected'}, 'backgroundColor': 'rgba(0, 123, 255, 0.1)', 'border': '1px solid #007bff'},
                 # Ingresos en verde claro
                 {
                     'if': {
                         'filter_query': '{type} = INCOME',
                         'column_id': 'type_display'
                     },
-                    'backgroundColor': '#d4edda',
+                    'backgroundColor': 'rgba(46, 204, 113, 0.15)',
                     'color': '#155724',
-                    'fontWeight': 'bold'
+                    'fontWeight': '600'
                 },
                 # Gastos en rojo claro
                 {
@@ -108,9 +112,9 @@ def layout_categories():
                         'filter_query': '{type} = EXPENSE',
                         'column_id': 'type_display'
                     },
-                    'backgroundColor': '#f8d7da',
+                    'backgroundColor': 'rgba(231, 76, 60, 0.15)',
                     'color': '#721c24',
-                    'fontWeight': 'bold'
+                    'fontWeight': '600'
                 },
             ]
         ),

@@ -1,3 +1,4 @@
 from .account_repository import SQLAlchemyAccountRepository
 from .transaction_repository import SQLAlchemyTransactionRepository
 from .tag_repository import SQLAlchemyTagRepository
+from .recurring_rule_repository import SQLAlchemyRecurringRuleRepository

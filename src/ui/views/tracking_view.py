@@ -443,9 +443,9 @@ def register_callbacks(app, account_service, transaction_service, tag_service):
             item_content = dbc.Row([
                 # Columna 1: Fecha (Día/Mes)
                 dbc.Col([
-                    html.Div(tx.date.strftime('%d'), className="fw-bold", style={'fontSize': '1.2em', 'lineHeight': '1'}),
-                    html.Small(tx.date.strftime('%b'), className="text-muted text-uppercase", style={'fontSize': '0.7em', 'letterSpacing': '0.5px'})
-                ], width=1, className="d-flex flex-column align-items-center justify-content-center border-end px-2"),
+                    html.Div(tx.date.strftime('%d'), className="fw-bold", style={'fontSize': '1.1em', 'lineHeight': '1'}),
+                    html.Small(tx.date.strftime('%b'), className="text-muted text-uppercase", style={'fontSize': '0.65em', 'letterSpacing': '0.5px'})
+                ], width=1, className="d-flex flex-column align-items-center justify-content-center border-end px-1"),
                 
                 # Columna 2: Detalles (Cuentas + Descripción + Tags)
                 dbc.Col([
@@ -453,13 +453,13 @@ def register_callbacks(app, account_service, transaction_service, tag_service):
                         html.Span(tx.source_account_name, className="fw-bold text-dark"),
                         html.Span(" → ", className="text-muted mx-1"),
                         html.Span(tx.destination_account_name, className="fw-bold text-dark"),
-                    ], className="mb-1", style={'fontSize': '0.95em'}),
+                    ], style={'fontSize': '0.9em', 'marginBottom': '2px'}),
                     
                     html.Div([
                         html.Small(tx.description if tx.description else "Sin descripción", className="text-secondary fst-italic me-2"),
                         *tags_badges
-                    ], style={'fontSize': '0.85em'})
-                ], width=7, className="ps-3 d-flex flex-column justify-content-center"),
+                    ], style={'fontSize': '0.8em'})
+                ], width=7, className="ps-2 d-flex flex-column justify-content-center"),
                 
                 # Columna 3: Monto y Acción
                 dbc.Col([
@@ -475,6 +475,6 @@ def register_callbacks(app, account_service, transaction_service, tag_service):
                 ], width=4, className="d-flex align-items-center justify-content-end pe-3")
             ], className="g-0 align-items-center")
             
-            list_items.append(dbc.ListGroupItem(item_content, className="py-2 action-item"))
+            list_items.append(dbc.ListGroupItem(item_content, className="py-1 action-item", style={'borderLeft': 'none', 'borderRight': 'none'}))
 
         return dbc.ListGroup(list_items, flush=True, className="shadow-sm rounded")

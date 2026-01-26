@@ -7,9 +7,16 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from src.infrastructure.persistence.db import engine, Base
 # Importamos los modelos para asegurarnos de que SQLAlchemy los registre antes de crear las tablas
-from src.infrastructure.persistence.models import AccountModel, TransactionModel, TagModel, TransactionEntryModel
+from src.infrastructure.persistence.models import (
+    AccountModel, 
+    TransactionModel, 
+    TagModel, 
+    TransactionEntryModel,
+    RecurringRuleModel
+)
 from src.infrastructure.persistence.uow import SQLAlchemyUnitOfWork
 from src.application.services import AccountService, TransactionService, TagService
+from src.application.services.recurring_rule_service import RecurringRuleService
 from src.application.container import Services
 from src.ui.app import init_dashboard
 
@@ -30,7 +37,8 @@ def main():
     services = Services(
         account=AccountService(uow),
         transaction=TransactionService(uow),
-        tag=TagService(uow)
+        tag=TagService(uow),
+        recurring_rule=RecurringRuleService(uow)
     )
     
     # 3. Configuración del Servidor Web (Flask)

@@ -4,7 +4,8 @@ from .db import SessionLocal # La factoría que creamos antes
 from .repositories import (
     SQLAlchemyAccountRepository, 
     SQLAlchemyTransactionRepository, 
-    SQLAlchemyTagRepository
+    SQLAlchemyTagRepository,
+    SQLAlchemyRecurringRuleRepository
 )
 
 class SQLAlchemyUnitOfWork(AbstractUnitOfWork):
@@ -25,6 +26,7 @@ class SQLAlchemyUnitOfWork(AbstractUnitOfWork):
         self.accounts = SQLAlchemyAccountRepository(self.session)
         self.transactions = SQLAlchemyTransactionRepository(self.session)
         self.tags = SQLAlchemyTagRepository(self.session)
+        self.recurring_rules = SQLAlchemyRecurringRuleRepository(self.session)
         
         # Devolvemos self para que el 'with' funcione
         return super().__enter__()

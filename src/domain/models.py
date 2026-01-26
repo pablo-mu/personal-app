@@ -7,7 +7,8 @@ de responsabilidad única. Y así, construir la base de la contabilidad de parti
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 from decimal import Decimal
 from typing import Optional
 from uuid import UUID
@@ -154,3 +155,107 @@ class Transaction:
 
         if not total.is_zero():
             raise ValueError(f"La transacción está desbalanceada. Suma total: {total.amount}")
+
+
+
+class TransactionType(Enum):
+    """Tipo de transacción recurrente."""
+    INCOME = "Ingreso"
+    EXPENSE = "Gasto"
+
+
+class RecurrenceType(Enum):
+    """ Tipo de patrón de recurrencia."""
+    CALENDAR_BASED = "calendar"
+    INTERVAL_BASED = "interval"
+
+
+class RecurrenceFrequency(Enum):
+    """ Frecuencia de recurrencia."""
+    DAILY = "Diaria"
+    WEEKLY = "Semanal"
+    MONTHLY = "Mensual"
+    YEARLY = "Anual"
+
+
+class IntervalUnit(Enum):
+    """Unidad de tiempo para recurrencias basadas en intervalos."""
+    DAYS = "Días"
+    WEEKS = "Semanas"
+    MONTHS = "Meses"
+    YEARS = "Años"
+
+@dataclass(frozen = True)
+class RecurringRule:
+    """
+    Regla para automatizar transacciones recurrentes.
+    Soporta dos tipos de recurrencia:
+    - Basada en calendario: Se repite en fechas específicas (ej. 1ro de cada mes).
+    - Basada en intervalos: Se repite cada N días, semanas, meses o años desde la última ocurrencia.
+    
+    transaction_type indica si es un INGRESO o GASTO, lo cual determina cómo interpretar
+    source_account_id y destination_account_id:
+    - EXPENSE: source es cuenta activo (de donde sale), destination es categoría de gasto
+    - INCOME: source es categoría de ingreso, destination es cuenta activo (donde entra)
+    """
+    # Campos obligatorios (sin valores por defecto)
+    id: UUID
+    amount: Money
+    source_account_id: UUID
+    destination_account_id: UUID
+    transaction_type: TransactionType
+    
+    # Campos opcionales o con valores por defecto
+    description: Optional[str] = None
+    tags_ids: Optional[list[UUID]] = field(default_factory=list)
+
+    # Configuración de recurrencia
+    recurrence_type: RecurrenceType = RecurrenceType.CALENDAR_BASED
+
+    # Calendar based 
+    frequency: Optional[RecurrenceFrequency] = None
+    day_of_execution: Optional[int] = None
+
+    # Interval based
+    interval_value: Optional[int] = None
+    interval_unit: Optional[IntervalUnit] = None
+
+    # Control de ejecución
+    start_date: datetime = field(default_factory=lambda: datetime.now())
+    end_date: Optional[datetime] = None
+    is_active: bool = True
+    last_execution_date: Optional[datetime] = None
+    next_execution_date: Optional[datetime] = None
+
+    def __post_init__(self):
+        """Validaciones de integridad de la configuración de recurrencia."""
+        # Validar coherencia según tipo de recurrencia
+        if self.recurrence_type == RecurrenceType.CALENDAR_BASED:
+            if self.frequency is None:
+                raise ValueError("CALENDAR_BASED requiere especificar 'frequency'")
+            if self.day_of_execution is None:
+                raise ValueError("CALENDAR_BASED requiere especificar 'day_of_execution'")
+            
+            # Validar rango de day_of_execution según frecuencia
+            if self.frequency == RecurrenceFrequency.MONTHLY:
+                if not 1 <= self.day_of_execution <= 31:
+                    raise ValueError(f"Para frecuencia MENSUAL, day_of_execution debe estar entre 1 y 31. Valor: {self.day_of_execution}")
+            elif self.frequency == RecurrenceFrequency.WEEKLY:
+                if not 1 <= self.day_of_execution <= 7:
+                    raise ValueError(f"Para frecuencia SEMANAL, day_of_execution debe estar entre 1 (lunes) y 7 (domingo). Valor: {self.day_of_execution}")
+        
+        elif self.recurrence_type == RecurrenceType.INTERVAL_BASED:
+            if self.interval_value is None:
+                raise ValueError("INTERVAL_BASED requiere especificar 'interval_value'")
+            if self.interval_unit is None:
+                raise ValueError("INTERVAL_BASED requiere especificar 'interval_unit'")
+            if self.interval_value <= 0:
+                raise ValueError(f"interval_value debe ser mayor a 0. Valor: {self.interval_value}")
+        
+        # Validar fechas
+        if self.end_date is not None and self.end_date < self.start_date:
+            raise ValueError(f"end_date ({self.end_date}) no puede ser anterior a start_date ({self.start_date})")
+        
+        # Validar que amount sea válido
+        if self.amount.amount <= 0:
+            raise ValueError(f"El monto de la regla debe ser mayor a 0. Valor: {self.amount.amount}")

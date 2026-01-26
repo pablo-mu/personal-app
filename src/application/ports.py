@@ -76,6 +76,18 @@ class AbstractTagRepository(AbstractRepository):
     """Puerto específico para gestionar Etiquetas (Tags)."""
     pass
 
+class AbstractRecurringRuleRepository(AbstractRepository):
+    """Puerto específico para gestionar Reglas Recurrentes (RecurringRules)."""
+    @abstractmethod
+    def get_active_rules(self) -> List[Any]:
+        """Obtiene todas las reglas activas."""
+        pass
+    
+    @abstractmethod
+    def get_all(self) -> List[Any]:
+        """Obtiene todas las reglas (activas e inactivas)."""
+        pass
+
 class AbstractUnitOfWork(ABC):
     """
     El patrón Unit of Work (Unidad de Trabajo).
@@ -96,6 +108,7 @@ class AbstractUnitOfWork(ABC):
     accounts: AbstractAccountRepository
     transactions: AbstractTransactionRepository
     tags: AbstractTagRepository
+    recurring_rules: AbstractRecurringRuleRepository
 
     def __enter__(self) -> "AbstractUnitOfWork":
         """Inicia el bloque 'with'. Prepara la sesión."""

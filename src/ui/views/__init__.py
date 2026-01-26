@@ -16,7 +16,7 @@ from .tracking_view import layout_daily, register_callbacks as register_tracking
 from .dashboard import layout_summary
 
 # Planning
-from .planning import layout_budgets, layout_recurring
+from .planning import layout_budgets, layout_recurring, register_recurring_callbacks
 
 # Config
 from .config import (
@@ -36,7 +36,7 @@ __all__ = [
     'layout_summary',
     
     # Planning
-    'layout_budgets', 'layout_recurring',
+    'layout_budgets', 'layout_recurring', 'register_recurring_callbacks',
     
     # Config
     'layout_transactions_config', 'register_transactions_callbacks',

@@ -76,4 +76,55 @@ class TransactionEntryModel(Base):
     # Relaciones
     transaction = relationship("TransactionModel", back_populates="entries")
     account = relationship("AccountModel", back_populates="entries") # <--- Conectamos con la relación nueva
+
+# --- TABLA INTERMEDIA para Reglas Recurrentes <-> Etiquetas ---
+recurring_rule_tags = Table(
+    "recurring_rule_tags",
+    Base.metadata,
+    Column("recurring_rule_id", String(36), ForeignKey("recurring_rules.id"), primary_key=True),
+    Column("tag_id", String(36), ForeignKey("tags.id"), primary_key=True),
+)
+
+class RecurringRuleModel(Base):
+    """Modelo de persistencia para reglas recurrentes."""
+    __tablename__ = "recurring_rules"
+    
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    description = Column(String, nullable=False)
+    
+    # Monto
+    amount = Column(Numeric(10, 2), nullable=False)
+    currency = Column(String(3), nullable=False, default="EUR")
+    
+    # Cuentas
+    source_account_id = Column(String(36), ForeignKey("accounts.id"), nullable=False)
+    destination_account_id = Column(String(36), ForeignKey("accounts.id"), nullable=False)
+    
+    # Tipo de transacción
+    transaction_type = Column(String(20), nullable=False)  # "Ingreso" o "Gasto"
+    
+    # Configuración de recurrencia
+    recurrence_type = Column(String(20), nullable=False)  # "calendar" o "interval"
+    
+    # Calendar based
+    frequency = Column(String(20), nullable=True)  # "Diaria", "Semanal", "Mensual", "Anual"
+    day_of_execution = Column(Integer, nullable=True)
+    
+    # Interval based
+    interval_value = Column(Integer, nullable=True)
+    interval_unit = Column(String(20), nullable=True)  # "Días", "Semanas", "Meses", "Años"
+    
+    # Control de ejecución
+    start_date = Column(DateTime, nullable=False)
+    end_date = Column(DateTime, nullable=True)
+    is_active = Column(Integer, default=1)  # 0/1 para SQLite
+    last_execution_date = Column(DateTime, nullable=True)
+    next_execution_date = Column(DateTime, nullable=True)
+    
+    # Relaciones
+    tags = relationship(
+        "TagModel",
+        secondary=recurring_rule_tags,
+        backref="recurring_rules"
+    )
     
