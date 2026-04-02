@@ -82,11 +82,19 @@ def layout_recurring():
                 dbc.Tooltip("Eliminar (selecciona reglas)", target="wrapper-delete-recurring", placement="top"),
             ], width="auto"),
             dbc.Col([
+                dbc.Button(html.I(className="bi bi-play-fill"), id='btn-execute-pending', 
+                          color="success", outline=True, n_clicks=0, className="btn-sm"),
+                dbc.Tooltip("Ejecutar reglas pendientes hasta hoy", target="btn-execute-pending", placement="top"),
+            ], width="auto"),
+            dbc.Col([
                 dbc.Button(html.I(className="bi bi-arrow-clockwise"), id='btn-refresh-recurring', 
                           color="secondary", outline=True, n_clicks=0, className="btn-sm"),
                 dbc.Tooltip("Actualizar", target="btn-refresh-recurring", placement="top"),
             ], width="auto"),
         ], className="mb-3 g-3"),
+        
+        # Alert para resultados de ejecución
+        html.Div(id='alert-execution-result', className="mt-3"),
         
         # Tabla de reglas recurrentes
         dash_table.DataTable(
@@ -381,6 +389,71 @@ def register_recurring_callbacks(app, services):
         except Exception as e:
             print(f"Error cargando reglas: {str(e)}")
             return []
+    
+    # ==========================================
+    # CALLBACK: Ejecutar reglas pendientes
+    # ==========================================
+    @app.callback(
+        [Output('alert-execution-result', 'children'),
+         Output('store-refresh-recurring', 'data', allow_duplicate=True)],
+        Input('btn-execute-pending', 'n_clicks'),
+        State('store-refresh-recurring', 'data'),
+        prevent_initial_call=True
+    )
+    def execute_pending_rules(n_clicks, current_refresh):
+        """Ejecuta todas las ocurrencias pendientes de las reglas recurrentes hasta hoy."""
+        if not n_clicks:
+            return no_update, no_update
+        
+        try:
+            from datetime import datetime
+            
+            # Ejecutar TODAS las ocurrencias pendientes hasta hoy
+            execution_date = datetime.now()
+            created_transactions = services.recurring_rule.execute_all_pending_until(
+                execution_date, 
+                services.transaction
+            )
+            
+            if created_transactions:
+                # Agrupar por regla para mejor visualización
+                by_rule = {}
+                for tx in created_transactions:
+                    rule_desc = tx['rule_description']
+                    if rule_desc not in by_rule:
+                        by_rule[rule_desc] = {'count': 0, 'total': 0}
+                    by_rule[rule_desc]['count'] += 1
+                    by_rule[rule_desc]['total'] += tx['amount']
+                
+                message = dbc.Alert([
+                    html.H5(f"✅ {len(created_transactions)} transacciones creadas", className="alert-heading"),
+                    html.Hr(),
+                    html.Ul([
+                        html.Li(f"{rule}: {info['count']} ocurrencias ({info['total']:.2f} EUR total)")
+                        for rule, info in by_rule.items()
+                    ])
+                ], color="success", dismissable=True, duration=10000)
+            else:
+                message = dbc.Alert(
+                    "ℹ️ No hay reglas pendientes de ejecutar hasta hoy.",
+                    color="info",
+                    dismissable=True,
+                    duration=4000
+                )
+            
+            # Refrescar la tabla
+            return message, (current_refresh or 0) + 1
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            error_msg = dbc.Alert(
+                f"❌ Error ejecutando reglas: {str(e)}",
+                color="danger",
+                dismissable=True,
+                duration=6000
+            )
+            return error_msg, no_update
     
     # ==========================================
     # CALLBACK: Habilitar/deshabilitar botones según selección

@@ -1,5 +1,4 @@
 import uuid
-from datetime import datetime
 from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, Numeric, Table
 from sqlalchemy.orm import relationship
 from .db import Base
@@ -9,6 +8,14 @@ transaction_tags = Table(
     "transaction_tags",
     Base.metadata,
     Column("transaction_id", String(36), ForeignKey("transactions.id"), primary_key=True),
+    Column("tag_id", String(36), ForeignKey("tags.id"), primary_key=True),
+)
+
+# --- TABLA INTERMEDIA para Reglas Recurrentes <-> Etiquetas ---
+recurring_rule_tags = Table(
+    "recurring_rule_tags",
+    Base.metadata,
+    Column("recurring_rule_id", String(36), ForeignKey("recurring_rules.id"), primary_key=True),
     Column("tag_id", String(36), ForeignKey("tags.id"), primary_key=True),
 )
 
@@ -25,6 +32,11 @@ class AccountModel(Base):
     initial_balance = Column(Numeric(10, 2), default = 0.00)
     initial_balance_currency = Column(String(3), default = "EUR")
 
+    # SALDO ACTUAL (desnormalizado para rendimiento)
+    # Se actualiza en cada create/update/delete de transacción.
+    current_balance          = Column(Numeric(15, 2), default=0.00)
+    current_balance_currency = Column(String(3), default="EUR")
+
     entries = relationship("TransactionEntryModel", back_populates="account")
 
 class TagModel(Base):
@@ -38,6 +50,11 @@ class TagModel(Base):
     transactions = relationship(
         "TransactionModel",
         secondary = transaction_tags,
+        back_populates="tags")
+    
+    recurring_rules = relationship(
+        "RecurringRuleModel",
+        secondary=recurring_rule_tags,
         back_populates="tags")
 
 class TransactionModel(Base):
@@ -77,13 +94,7 @@ class TransactionEntryModel(Base):
     transaction = relationship("TransactionModel", back_populates="entries")
     account = relationship("AccountModel", back_populates="entries") # <--- Conectamos con la relación nueva
 
-# --- TABLA INTERMEDIA para Reglas Recurrentes <-> Etiquetas ---
-recurring_rule_tags = Table(
-    "recurring_rule_tags",
-    Base.metadata,
-    Column("recurring_rule_id", String(36), ForeignKey("recurring_rules.id"), primary_key=True),
-    Column("tag_id", String(36), ForeignKey("tags.id"), primary_key=True),
-)
+
 
 class RecurringRuleModel(Base):
     """Modelo de persistencia para reglas recurrentes."""
@@ -125,6 +136,6 @@ class RecurringRuleModel(Base):
     tags = relationship(
         "TagModel",
         secondary=recurring_rule_tags,
-        backref="recurring_rules"
+        back_populates="recurring_rules"
     )
     

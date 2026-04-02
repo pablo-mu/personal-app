@@ -333,6 +333,87 @@ class RecurringRuleService:
             self.uow.commit()
             return created_transactions
 
+    def execute_all_pending_until(self, end_date: datetime, transaction_service) -> List[dict]:
+        """
+        Ejecuta TODAS las ocurrencias pendientes de las reglas recurrentes hasta una fecha.
+        Útil para "ponerse al día" cuando la app no se ha ejecutado en días/semanas.
+        
+        Args:
+            end_date: Fecha límite hasta la cual ejecutar (inclusive)
+            transaction_service: Instancia de TransactionService
+            
+        Returns:
+            Lista de todas las transacciones creadas
+        """
+        all_created = []
+        max_iterations = 1000  # Protección contra bucles infinitos
+        iterations = 0
+        
+        with self.uow:
+            all_rules = self.uow.recurring_rules.get_all()
+            
+            # Para cada regla activa
+            for rule in all_rules:
+                if not rule.is_active:
+                    continue
+                    
+                # Ejecutar todas las ocurrencias pendientes hasta end_date
+                current_rule = rule
+                while iterations < max_iterations:
+                    iterations += 1
+                    
+                    # Verificar si debe ejecutarse
+                    if not current_rule.next_execution_date:
+                        break
+                        
+                    if current_rule.next_execution_date.date() > end_date.date():
+                        break
+                        
+                    if current_rule.end_date and current_rule.next_execution_date.date() > current_rule.end_date.date():
+                        break
+                    
+                    try:
+                        # Ejecutar en la fecha programada
+                        exec_date = current_rule.next_execution_date
+                        
+                        tx_dto = TransactionEntryDTO(
+                            description=f"🔁 {current_rule.description}",
+                            amount=MoneySchema(
+                                amount=current_rule.amount.amount,
+                                currency=current_rule.amount.currency
+                            ),
+                            source_account_id=current_rule.source_account_id,
+                            destination_account_id=current_rule.destination_account_id,
+                            date=exec_date,
+                            tags_ids=current_rule.tags_ids
+                        )
+                        
+                        created_tx = transaction_service.create_transaction(tx_dto)
+                        
+                        # Actualizar regla
+                        current_rule = self.mark_as_executed(current_rule, exec_date)
+                        
+                        all_created.append({
+                            'rule_id': str(rule.id),
+                            'rule_description': rule.description,
+                            'transaction_id': str(created_tx.id),
+                            'amount': float(created_tx.amount.amount),
+                            'execution_date': exec_date.strftime('%Y-%m-%d'),
+                            'next_execution': current_rule.next_execution_date.strftime('%Y-%m-%d') if current_rule.next_execution_date else None
+                        })
+                        
+                    except Exception as e:
+                        print(f"❌ Error ejecutando regla '{current_rule.description}' en {exec_date}: {str(e)}")
+                        break
+                
+                # Guardar el estado final de la regla
+                if current_rule != rule:
+                    self.uow.recurring_rules.update(current_rule)
+            
+            self.uow.commit()
+        
+        return all_created
+
     # =========================================
     # HELPERS
     # =========================================

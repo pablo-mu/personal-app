@@ -6,7 +6,8 @@ CONCEPTOS CLAVE:
 1. REPOSITORIO (The Drawer/Cajón):
    Abstrae el almacenamiento. Para la aplicación, guardar un dato es como meterlo
    en un cajón. No le importa si el cajón es de madera (Memoria), metal (SQLite)
-   o está en la nube (PostgreSQL).
+   o está en la nube (PostgreSQL). Es decir, define qué operaciones existen, no 
+   cómo se implementan. 
 
 2. UNIT OF WORK (The Save Button/Botón Maestro):
    Maneja la "Atomicidad". Si tienes que hacer 3 cosas (restar dinero, sumar dinero,
@@ -14,8 +15,17 @@ CONCEPTOS CLAVE:
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Tuple
 from uuid import UUID
+ 
+from src.domain.models import (
+    Account,
+    AccountSearchCriteria,
+    AccountType,
+    Transaction,
+    TransactionSearchCriteria,
+)
+ 
 
 class AbstractRepository(ABC):
     """
@@ -47,7 +57,6 @@ class AbstractRepository(ABC):
         """Elimina una entidad por su ID."""
         pass
 
-from src.domain.models import Account, AccountType, AccountSearchCriteria
 
 class AbstractAccountRepository(AbstractRepository):
     """Puerto específico para gestionar Cuentas (Accounts)."""
@@ -67,6 +76,18 @@ class AbstractAccountRepository(AbstractRepository):
         pass
 class AbstractTransactionRepository(AbstractRepository):
     """Puerto específico para gestionar Transacciones (Transactions)."""
+
+    @abstractmethod
+    def search(
+        self,
+        criteria: TransactionSearchCriteria,
+    ) -> Tuple[List[Transaction], int]:
+        """
+        Busca transacciones con filtros y paginación.
+        Devuelve (lista_de_transacciones, total_sin_paginar).
+        """
+        pass
+
     @abstractmethod
     def count_by_account(self, account_id: UUID) -> int:
         """Cuenta cuántas transacciones afectan a una cuenta específica."""

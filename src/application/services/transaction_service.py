@@ -1,10 +1,35 @@
+"""
+Servicio de Aplicación para Transacciones.
+ 
+Gestiona el ciclo de vida completo de un movimiento financiero:
+creación, actualización, eliminación y búsqueda con filtros.
+"""
+ 
 import uuid
-from typing import List
 from dataclasses import replace
-from src.application.dtos import TransactionEntryDTO, TransactionOutputDTO, MoneySchema
+from decimal import Decimal
+from typing import List, Optional, Tuple
+ 
+from src.application.dtos import (
+    MoneySchema,
+    PaginatedResponse,
+    PaginationParams,
+    TransactionEntryDTO,
+    TransactionFilterDTO,
+    TransactionOutputDTO,
+    TagDTO,
+)
 from src.application.ports import AbstractUnitOfWork
+from src.domain.exceptions import (
+    AccountNotFoundError,
+    CurrencyMismatchError,
+    TagNotFoundError,
+    TransactionNotFoundError,
+)
 from src.domain.factories import TransactionFactory
+from src.domain.models import TransactionSearchCriteria
 from src.domain.value_objects import Money
+
 
 class TransactionService:
     """
@@ -12,6 +37,65 @@ class TransactionService:
     """
     def __init__(self, uow: AbstractUnitOfWork):
         self.uow = uow
+
+    # Helper DTO
+    def _build_output_dto(self, tx, uow) -> TransactionOutputDTO:
+        """Construye el DTO de salida inspeccionando los apuntes de la transacción"""
+        source_entry = next((e for e in tx.entries if e.amount.amount < 0), None)
+        dest_entry   = next((e for e in tx.entries if e.amount.amount > 0), None)
+ 
+        source_name, dest_name = "Desconocido", "Desconocido"
+        source_id, dest_id     = None, None
+        amount, currency       = Decimal("0"), "EUR"
+ 
+        if source_entry:
+            acc = uow.accounts.get(source_entry.account_id)
+            if acc:
+                source_name, source_id = acc.name, acc.id
+            amount   = abs(source_entry.amount.amount)
+            currency = source_entry.amount.currency
+ 
+        if dest_entry:
+            acc = uow.accounts.get(dest_entry.account_id)
+            if acc:
+                dest_name, dest_id = acc.name, acc.id
+ 
+        tag_names = []
+        tags_ids  = []
+        if tx.tags_ids:
+            tags = [uow.tags.get(tid) for tid in tx.tags_ids]
+            tag_names = [t.name for t in tags if t]
+            tags_ids  = [t.id   for t in tags if t]
+ 
+        return TransactionOutputDTO(
+            id=tx.id,
+            date=tx.date,
+            description=tx.description or "",
+            amount=MoneySchema(amount=amount, currency=currency),
+            source_account_name=source_name,
+            destination_account_name=dest_name,
+            source_account_id=source_id,
+            destination_account_id=dest_id,
+            tags=tag_names,
+            tags_ids=tags_ids,
+        )
+    
+    def _apply_balance_delta(self, transaction, uow, sign: int = 1) -> None:
+        """
+        Aplica (sign=+1) o revierte (sign=-1) el impacto de una transacción
+        en los saldos de las cuentas.
+        """
+        for entry in transaction.entries:
+            account = uow.accounts.get(entry.account_id)
+            if not account:
+                raise AccountNotFoundError(entry.account_id)
+ 
+            if account.current_balance.currency != entry.amount.currency:
+                raise CurrencyMismatchError(account.current_balance.currency, entry.amount.currency)
+ 
+            new_amount  = account.current_balance.amount + sign * entry.amount.amount
+            updated_acc = replace(account, current_balance=Money(new_amount, account.current_balance.currency))
+            uow.accounts.update(updated_acc)
 
     def create_transaction(self, dto: TransactionEntryDTO) -> TransactionOutputDTO:
         """
@@ -23,70 +107,37 @@ class TransactionService:
             dest_account = self.uow.accounts.get(dto.destination_account_id)
 
             if not source_account:
-                raise ValueError("Cuenta de origen no encontrada.")
+                raise AccountNotFoundError(dto.source_account_id)
             if not dest_account:
-                raise ValueError("Cuenta de destino no encontrada.")
+                raise AccountNotFoundError(dto.destination_account_id)
             
             # 2. Validación de etiquetas (si se enviaron)
             for tag_id in dto.tags_ids:
-                tag = self.uow.tags.get(tag_id)
-                if not tag:
-                    raise ValueError(f"Etiqueta con ID {tag_id} no encontrada.")
+                if not self.uow.tags.get(tag_id):
+                    raise TagNotFoundError(tag_id)
                 
             # 3. Creación usando la FACTORY del Dominio
             # La factory se encarga de crear los apuntes (entries) y validar reglas de negocio
             transaction = TransactionFactory.create_transaction(
                 description=dto.description,
-                amount=dto.amount.amount, # Extraemos el Decimal del objeto Money
+                amount=dto.amount.amount,
                 currency=dto.amount.currency,
                 source_account_id=dto.source_account_id,
                 destination_account_id=dto.destination_account_id,
                 date=dto.date,
                 related_transaction_id=dto.related_transaction_id,
-                tags_ids=dto.tags_ids
+                tags_ids=dto.tags_ids,
             )
             
             # 4. Persistencia de la transacción PRIMERO
             # Así si falla la persistencia, no se modifican los balances
             self.uow.transactions.add(transaction)
-            
-            # 5. Actualizar current_balance de las cuentas afectadas
-            # Iterar sobre los apuntes de la transacción y actualizar saldos
-            for entry in transaction.entries:
-                account = self.uow.accounts.get(entry.account_id)
-                if not account:
-                    raise ValueError(f"Cuenta {entry.account_id} no encontrada al actualizar balance")
-                
-                # Validar consistencia de moneda
-                if account.current_balance.currency != entry.amount.currency:
-                    raise ValueError(f"Inconsistencia de moneda: cuenta usa {account.current_balance.currency}, transacción usa {entry.amount.currency}")
-                
-                # Sumar el apunte al saldo actual (amount puede ser positivo o negativo)
-                new_balance_amount = account.current_balance.amount + entry.amount.amount
-                new_current_balance = Money(amount=new_balance_amount, currency=account.current_balance.currency)
-                updated_account = replace(account, current_balance=new_current_balance)
-                self.uow.accounts.update(updated_account)
-            
-            # 6. Commit de TODO (transacción + balances actualizados)
-            # Si falla, el UoW hace rollback automático
+
+            self.uow.transactions.add(transaction)
+            self._apply_balance_delta(transaction, self.uow, sign=1)
             self.uow.commit()
-
-            # 5. Devolvemos un DTO de salida
-            tag_names = []
-            tags = [self.uow.tags.get(tag_id) for tag_id in transaction.tags_ids]
-            tag_names = [tag.name for tag in tags if tag]
-
-            return TransactionOutputDTO(
-                id=transaction.id,
-                date=transaction.date,
-                description=transaction.description,
-                amount=MoneySchema(amount=dto.amount.amount, currency=dto.amount.currency),
-                source_account_name=source_account.name,
-                destination_account_name=dest_account.name,
-                source_account_id=source_account.id,
-                destination_account_id=dest_account.id,
-                tags=tag_names
-            )
+ 
+            return self._build_output_dto(transaction, self.uow)
 
     def delete_transaction(self, transaction_id: str) -> None:
         """
@@ -96,29 +147,10 @@ class TransactionService:
             # 1. Buscar Existente para validar que existe
             existing_tx = self.uow.transactions.get(transaction_id)
             if not existing_tx:
-                # O podríamos lanzar error, o simplemente ignorar si ya no existe (idempotencia)
-                 raise ValueError(f"Transacción {transaction_id} no encontrada")
+                raise TransactionNotFoundError(transaction_id)
             
-            # 2. Revertir cambios en current_balance ANTES de eliminar
-            for entry in existing_tx.entries:
-                account = self.uow.accounts.get(entry.account_id)
-                if not account:
-                    raise ValueError(f"Cuenta {entry.account_id} no encontrada al revertir balance")
-                
-                # Validar consistencia de moneda
-                if account.current_balance.currency != entry.amount.currency:
-                    raise ValueError(f"Inconsistencia de moneda al eliminar transacción")
-                
-                # Restar el apunte del saldo actual (inverso de la creación)
-                new_balance_amount = account.current_balance.amount - entry.amount.amount
-                new_current_balance = Money(amount=new_balance_amount, currency=account.current_balance.currency)
-                updated_account = replace(account, current_balance=new_current_balance)
-                self.uow.accounts.update(updated_account)
-            
-            # 3. Eliminar la transacción
+            self._apply_balance_delta(existing_tx, self.uow, sign=-1)
             self.uow.transactions.delete(transaction_id)
-            
-            # 4. Commit de TODO
             self.uow.commit()
 
     def update_transaction(self, transaction_id: str, dto: TransactionEntryDTO) -> TransactionOutputDTO:
@@ -129,27 +161,18 @@ class TransactionService:
             # 1. Buscar Existente
             existing_tx = self.uow.transactions.get(transaction_id)
             if not existing_tx:
-                raise ValueError(f"Transacción {transaction_id} no encontrada")
+                raise TransactionNotFoundError(transaction_id)
 
             # 2. Validar cuentas nuevas existen
             source_account = self.uow.accounts.get(dto.source_account_id)
             dest_account = self.uow.accounts.get(dto.destination_account_id)
-            if not source_account or not dest_account:
-                raise ValueError("Cuentas de origen o destino no encontradas")
+            if not source_account:
+                raise AccountNotFoundError(dto.source_account_id)
+            if not dest_account:
+                raise AccountNotFoundError(dto.destination_account_id)
 
-            # 3. Revertir balances de la transacción antigua
-            for entry in existing_tx.entries:
-                account = self.uow.accounts.get(entry.account_id)
-                if not account:
-                    raise ValueError(f"Cuenta {entry.account_id} no encontrada al revertir balance")
-                
-                if account.current_balance.currency != entry.amount.currency:
-                    raise ValueError(f"Inconsistencia de moneda al revertir")
-                
-                new_balance_amount = account.current_balance.amount - entry.amount.amount
-                new_current_balance = Money(amount=new_balance_amount, currency=account.current_balance.currency)
-                updated_account = replace(account, current_balance=new_current_balance)
-                self.uow.accounts.update(updated_account)
+            # Revertir impacto de la transacción antigua
+            self._apply_balance_delta(existing_tx, self.uow, sign=-1)
             
             # 4. Re-crear objeto dominio usando Factory (reciclando ID)
             # Esto valida reglas de negocio de nuevo con los nuevos datos
@@ -170,95 +193,56 @@ class TransactionService:
             self.uow.transactions.update(updated_tx)
             
             # 6. Aplicar nuevos balances
-            for entry in updated_tx.entries:
-                account = self.uow.accounts.get(entry.account_id)
-                if not account:
-                    raise ValueError(f"Cuenta {entry.account_id} no encontrada al aplicar balance")
-                
-                if account.current_balance.currency != entry.amount.currency:
-                    raise ValueError(f"Inconsistencia de moneda: cuenta usa {account.current_balance.currency}, transacción usa {entry.amount.currency}")
-                
-                new_balance_amount = account.current_balance.amount + entry.amount.amount
-                new_current_balance = Money(amount=new_balance_amount, currency=account.current_balance.currency)
-                updated_account = replace(account, current_balance=new_current_balance)
-                self.uow.accounts.update(updated_account)
-            
-            # 7. Commit de TODO (transacción actualizada + balances)
+            self._apply_balance_delta(updated_tx, self.uow, sign=1)
             self.uow.commit()
-
-            return TransactionOutputDTO(
-                id=updated_tx.id,
-                date=updated_tx.date,
-                description=updated_tx.description,
-                amount=dto.amount,
-                source_account_name=source_account.name,
-                destination_account_name=dest_account.name,
-                source_account_id=source_account.id,
-                destination_account_id=dest_account.id,
-                tags=[] # Simplificación
-            )
-
-    def list_transactions(self) -> List[TransactionOutputDTO]:
-        """
-        Lista todas las transacciones.
-        """
+ 
+            return self._build_output_dto(updated_tx, self.uow)
+        
+    
+    def get_transaction(self, transaction_id: uuid.UUID) -> TransactionOutputDTO:
         with self.uow:
-            transactions = self.uow.transactions.list()
-            output_list = []
-            for tx in transactions:
-                # Necesitamos obtener los nombres de las cuentas para el DTO
-                # Esto podría ser ineficiente (N+1 queries), pero por ahora es funcional.
-                # En una implementación real, el repositorio debería hacer un JOIN o traer la info necesaria.
-                # O el DTO podría solo tener IDs y el frontend resolver los nombres.
-                # Asumiremos que podemos obtener las cuentas.
-                
-                # Nota: TransactionEntry tiene account_id.
-                # Buscamos la cuenta origen (amount < 0) y destino (amount > 0) para simplificar la vista
-                # Aunque una transacción puede tener N entradas.
-                # Asumimos la estructura simple de 2 entradas creada por la Factory.
-                
-                source_entry = next((e for e in tx.entries if e.amount.amount < 0), None)
-                dest_entry = next((e for e in tx.entries if e.amount.amount > 0), None)
-                
-                source_name = "Desconocido"
-                dest_name = "Desconocido"
-                amount = 0
-                currency = "EUR"
+            tx = self.uow.transactions.get(transaction_id)
+            if not tx:
+                raise TransactionNotFoundError(transaction_id)
+            return self._build_output_dto(tx, self.uow)
 
-                source_id = None
-                dest_id = None
-
-                if source_entry:
-                    source_acc = self.uow.accounts.get(source_entry.account_id)
-                    if source_acc: 
-                        source_name = source_acc.name
-                        source_id = source_acc.id
-                    amount = abs(source_entry.amount.amount)
-                    currency = source_entry.amount.currency
-                
-                if dest_entry:
-                    dest_acc = self.uow.accounts.get(dest_entry.account_id)
-                    if dest_acc: 
-                        dest_name = dest_acc.name
-                        dest_id = dest_acc.id
-                
-                tag_names = []
-                tags_ids = []
-                if tx.tags_ids:
-                    tags = [self.uow.tags.get(tid) for tid in tx.tags_ids]
-                    tag_names = [t.name for t in tags if t]
-                    tags_ids = [t.id for t in tags if t]
-
-                output_list.append(TransactionOutputDTO(
-                    id=tx.id,
-                    date=tx.date,
-                    description=tx.description,
-                    amount=MoneySchema(amount=amount, currency=currency),
-                    source_account_name=source_name,
-                    destination_account_name=dest_name,
-                    source_account_id=source_id,
-                    destination_account_id=dest_id,
-                    tags=tag_names,
-                    tags_ids=tags_ids
-                ))
-            return output_list
+    def list_transactions(
+        self,
+        filters: Optional[TransactionFilterDTO] = None,
+        pagination: Optional[PaginationParams] = None,
+    ) -> PaginatedResponse[TransactionOutputDTO]:
+        """
+        Lista transacciones con filtros aplicados en BD y paginación.
+        Devuelve una respuesta paginada.
+        """
+        if pagination is None:
+            pagination = PaginationParams(page=1, page_size=50)
+ 
+        criteria = TransactionSearchCriteria(
+            account_id=filters.account_id if filters else None,
+            source_account_id=filters.source_account_id if filters else None,
+            destination_account_id=filters.destination_account_id if filters else None,
+            min_amount=filters.min_amount if filters else None,
+            max_amount=filters.max_amount if filters else None,
+            date_from=filters.date_from if filters else None,
+            date_to=filters.date_to if filters else None,
+            tag_ids=list(filters.tag_ids) if filters and filters.tag_ids else None,
+            description_contains=filters.description_contains if filters else None,
+            page=pagination.page,
+            page_size=pagination.page_size,
+        )
+ 
+        with self.uow:
+            transactions, total = self.uow.transactions.search(criteria)
+            items = [self._build_output_dto(tx, self.uow) for tx in transactions]
+            return PaginatedResponse.build(
+                items=items,
+                total=total,
+                page=pagination.page,
+                page_size=pagination.page_size,
+            )
+ 
+    # Compat: devuelve lista plana (usada por la UI de Dash)
+    def list_transactions_flat(self) -> List[TransactionOutputDTO]:
+        paged = self.list_transactions(pagination=PaginationParams(page=1, page_size=1000))
+        return paged.items
