@@ -1,27 +1,32 @@
-import os
+"""
+Configuración de la conexión a base de datos (SQLAlchemy).
+La URL se lee desde Settings para facilitar el cambio de SQLite → PostgreSQL.
+"""
+ 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
-
-# Configuración externa (12-Factor App)
-# Permite cambiar la DB sin tocar el código (ej: usar PostgreSQL en producción)
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./finance_app.db")
-
+ 
+from src.config import settings
+ 
 engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {},
-    echo=False
+    settings.DATABASE_URL,
+    connect_args={"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {},
+    echo=settings.DEBUG,
 )
-
+ 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
+ 
+ 
 class Base(DeclarativeBase):
-    """Base class for all ORM models."""
+    """Clase base para todos los modelos ORM."""
     pass
-
+ 
+ 
 def get_db():
-    """Dependency to get DB session."""
+    """Generador de sesión para FastAPI (si se necesita en el futuro)."""
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+ 

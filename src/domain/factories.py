@@ -1,10 +1,15 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
+
+from .exceptions import NegativeAmountError, TransactionImbalancedError
 from .models import Transaction, TransactionEntry
 from .value_objects import Money
 
+
 class TransactionFactory:
+    """Fábrica para crear transacciones válidas con los apuntes de partida doble."""
+
     @staticmethod
     def create_transaction(
         description: str,
@@ -14,31 +19,29 @@ class TransactionFactory:
         currency: str = "EUR",
         date: datetime = None,
         related_transaction_id: uuid.UUID = None,
-        tags_ids: list[uuid.UUID] = None
-    ):
+        tags_ids: list[uuid.UUID] = None,
+    ) -> Transaction:
         if date is None:
             date = datetime.now()
 
         if amount <= 0:
-            raise ValueError("El monto de la transacción debe ser positivo.")
-        
+            raise NegativeAmountError("monto de la transacción")
+
         amount_money = Money(amount, currency)
 
         entries = [
-            TransactionEntry(account_id=source_account_id, amount=-amount_money),
+            TransactionEntry(account_id=source_account_id,      amount=-amount_money),
             TransactionEntry(account_id=destination_account_id, amount=amount_money),
         ]
 
         transaction = Transaction(
             id=uuid.uuid4(),
             date=date,
-            description=description,
+            description=description or "",
             entries=entries,
             related_transaction_id=related_transaction_id,
-            tags_ids=tags_ids
+            tags_ids=tags_ids or [],
         )
-        
-        # Validar integridad de partida doble antes de devolver
-        transaction.validate()
 
+        transaction.validate()
         return transaction
