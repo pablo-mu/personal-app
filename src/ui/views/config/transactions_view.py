@@ -275,7 +275,7 @@ def register_callbacks(app, transaction_service: TransactionService, account_ser
         if pathname != '/config/transactions':
              return no_update
              
-        txs = transaction_service.list_transactions()
+        txs = transaction_service.list_transactions_flat()
         
         # Aplicar filtros
         if filters:

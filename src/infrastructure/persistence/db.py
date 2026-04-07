@@ -4,7 +4,7 @@ La URL se lee desde Settings para facilitar el cambio de SQLite → PostgreSQL.
 """
  
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from sqlalchemy.orm import sessionmaker, DeclarativeBase, scoped_session
  
 from src.config import settings
  
@@ -14,7 +14,7 @@ engine = create_engine(
     echo=settings.DEBUG,
 )
  
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))
  
  
 class Base(DeclarativeBase):
@@ -28,5 +28,5 @@ def get_db():
     try:
         yield db
     finally:
-        db.close()
+        SessionLocal.remove()
  

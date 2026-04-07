@@ -15,7 +15,7 @@ from src.infrastructure.persistence.models import (
     RecurringRuleModel
 )
 from src.infrastructure.persistence.uow import SQLAlchemyUnitOfWork
-from src.application.services import AccountService, TransactionService, TagService
+from src.application.services import AccountService, TransactionService, TagService, ReportService
 from src.application.services.recurring_rule_service import RecurringRuleService
 from src.application.container import Services
 from src.ui.app import init_dashboard
@@ -38,7 +38,8 @@ def main():
         account=AccountService(uow),
         transaction=TransactionService(uow),
         tag=TagService(uow),
-        recurring_rule=RecurringRuleService(uow)
+        recurring_rule=RecurringRuleService(uow),
+        report = ReportService(uow)
     )
     
     # 3. Configuración del Servidor Web (Flask)

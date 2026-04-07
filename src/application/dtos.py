@@ -35,7 +35,7 @@ class MoneySchema(BaseModel):
 class PaginationParams(BaseModel):
     """Parámetros de paginación comunes."""
     page: int = Field(default=1, ge=1, description="Número de página (empieza en 1)")
-    page_size: int = Field(default=20, ge=1, le=100, description="Elementos por página")
+    page_size: int = Field(default=20, ge=1, le=1000, description="Elementos por página")
 
 
 class PaginatedResponse(BaseModel, Generic[T]):

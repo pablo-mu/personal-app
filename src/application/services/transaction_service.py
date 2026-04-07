@@ -132,8 +132,6 @@ class TransactionService:
             # 4. Persistencia de la transacción PRIMERO
             # Así si falla la persistencia, no se modifican los balances
             self.uow.transactions.add(transaction)
-
-            self.uow.transactions.add(transaction)
             self._apply_balance_delta(transaction, self.uow, sign=1)
             self.uow.commit()
  

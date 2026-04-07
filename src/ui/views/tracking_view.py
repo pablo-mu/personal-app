@@ -240,7 +240,7 @@ def register_callbacks(app, account_service, transaction_service, tag_service):
                  tx_id = base_query['edit_id'][0]
             
             # Buscar transacción en servicio
-            all_txs = transaction_service.list_transactions()
+            all_txs = transaction_service.list_transactions_flat()
             tx = next((t for t in all_txs if str(t.id) == str(tx_id)), None)
             
             if not tx: return clean_return()
@@ -429,7 +429,7 @@ def register_callbacks(app, account_service, transaction_service, tag_service):
         Actualiza la tabla visual de transacciones recientes.
         Modificado para un diseño más compacto (ListGroup) con botón de edición.
         """
-        txs = transaction_service.list_transactions()
+        txs = transaction_service.list_transactions_flat()
         if not txs: return html.Div("No hay movimientos recientes.", className="text-muted text-center mt-3")
         
         list_items = []

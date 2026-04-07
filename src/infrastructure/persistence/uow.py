@@ -30,7 +30,7 @@ class SQLAlchemyUnitOfWork(AbstractUnitOfWork):
  
     def __exit__(self, *args):
         super().__exit__(*args)
-        self.session.close()
+        self.session_factory.remove()
  
     def commit(self):
         self.session.commit()
