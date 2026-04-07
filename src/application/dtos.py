@@ -1,21 +1,28 @@
+"""
+Data Transfer Objects (DTOs) de la capa de aplicación.
+
+Responsabilidad: Definir los contratos de datos entre la UI/API y los servicios.
+Los DTOs validan con Pydantic pero NO contienen lógica de negocio.
+"""
+
 from datetime import datetime
 from decimal import Decimal
 from typing import Generic, List, Optional, TypeVar
 from uuid import UUID
-from pydantic import BaseModel, Field, UUID4, field_validator, model_validator 
 
-from src.domain import AccountType
+from pydantic import BaseModel, Field, UUID4, field_validator, model_validator
 
-# --- SCHEMAS AUXILIARES ---
+from src.domain.models import AccountType
 
-# Variable Genérica para utilizar cuando no está definido el item.
+
+# ─────────────────────────────────────────
+# Tipos y Auxiliares
+# ─────────────────────────────────────────
+
 T = TypeVar("T")
 
+
 class MoneySchema(BaseModel):
-    """
-    Esquema para validar entrada/salida de dinero en JSON.
-    Ejemplo: {"amount": 10.50, "currency": "EUR"}
-    """
     amount: Decimal
     currency: str = "EUR"
 
@@ -23,79 +30,78 @@ class MoneySchema(BaseModel):
     @classmethod
     def round_amount(cls, v: Decimal) -> Decimal:
         return v.quantize(Decimal("0.01"))
-    
+
 
 class PaginationParams(BaseModel):
-    """Parámetros de Paginación Comunes"""
-    page: int = Field(default = 1, ge=1, description="Número de página (empieza en 1)")
-    page_size: int = Field(default = 20, ge=1, le=100, description="Elementos por página")
+    """Parámetros de paginación comunes."""
+    page: int = Field(default=1, ge=1, description="Número de página (empieza en 1)")
+    page_size: int = Field(default=20, ge=1, le=100, description="Elementos por página")
 
 
 class PaginatedResponse(BaseModel, Generic[T]):
-    """ Respuesta paginada genérica para cualquier tipo de elemento."""
-    items: List[T]     #Lista de elementos de tipo T (indefinido)
-    total: int  #Número total de elementos disponibles en origen
-    page: int   #Página actual
-    page_size: int  # Número de elementos por página
-    pages: int  # Número total de páginas calculado a partir de total y page_size
-    
+    """Respuesta paginada genérica."""
+    items: List[T]
+    total: int
+    page: int
+    page_size: int
+    pages: int
+
     @classmethod
     def build(cls, items: List[T], total: int, page: int, page_size: int) -> "PaginatedResponse[T]":
         pages = max(1, -(-total // page_size))  # ceiling division
         return cls(items=items, total=total, page=page, page_size=page_size, pages=pages)
 
 
-# --- ACCOUNTS ---
+# ─────────────────────────────────────────
+# Cuentas
+# ─────────────────────────────────────────
 
 class AccountCreateDTO(BaseModel):
-    """ DTO de Entrada: Lo que el usuario envía para crear cuenta """
-    name:  str = Field(..., min_length=1, max_length=100)
+    name: str = Field(..., min_length=1, max_length=100)
     type: AccountType
-    # Pydantic validará que sea un objeto con amount y currency
-    initial_balance: MoneySchema = Field(default_factory=lambda: MoneySchema(amount=Decimal('0.00')))
+    initial_balance: MoneySchema = Field(default_factory=lambda: MoneySchema(amount=Decimal("0.00")))
     is_active: bool = True
     account_number: Optional[str] = Field(default=None, max_length=50)
     parent_account_id: Optional[UUID4] = None
 
-class AccountOutputDTO(BaseModel):
-    """ DTO de Salida: Lo que respondemos al usuario """
-    id: UUID4
-    name: str
-    type: AccountType
-    initial_balance: MoneySchema
-    current_balance: MoneySchema  # Saldo actualizado con transacciones
-    is_active: bool
-    account_number: Optional[str] = None
-    parent_account_id: Optional[UUID4] = None
-
-    # Esto permite crear el DTO directamente desde la Entidad de Dominio
-    model_config = {"from_attributes": True}
 
 class AccountUpdateDTO(BaseModel):
-    """ DTO para actualizar una cuenta existente """
     name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     type: Optional[AccountType] = None
     is_active: Optional[bool] = None
     account_number: Optional[str] = Field(default=None, max_length=50)
     parent_account_id: Optional[UUID4] = None
 
+
 class AccountFilterDTO(BaseModel):
     """
-    DTO para filtrar búsquedas de cuentas.
-    Todos los campos son opcionales.
+    DTO para filtrar cuentas. Todos los campos son opcionales.
+    No es frozen: la capa UI construye el objeto vacío y luego asigna campos.
     """
     type: Optional[AccountType] = None
     parent_id: Optional[UUID4] = None
-    is_active: Optional[bool] = None  # None = Traer todas, True = Solo activas
+    is_active: Optional[bool] = None
     name_contains: Optional[str] = None
-    
-    # Configuración extra si quieres que sea inmutable (opcional)
-    model_config = {"frozen": True}
-    
-# --- TRANSACTIONS ---
+
+
+class AccountOutputDTO(BaseModel):
+    id: UUID4
+    name: str
+    type: AccountType
+    initial_balance: MoneySchema
+    current_balance: MoneySchema
+    is_active: bool
+    account_number: Optional[str] = None
+    parent_account_id: Optional[UUID4] = None
+
+    model_config = {"from_attributes": True}
+
+
+# ─────────────────────────────────────────
+# Transacciones
+# ─────────────────────────────────────────
 
 class TransactionEntryDTO(BaseModel):
-    """ DTO de Entrada: Crear transacción """
     description: Optional[str] = Field(default=None, max_length=200)
     amount: MoneySchema
     source_account_id: UUID4
@@ -104,13 +110,13 @@ class TransactionEntryDTO(BaseModel):
     tags_ids: List[UUID4] = Field(default_factory=list)
     related_transaction_id: Optional[UUID4] = None
 
-    @field_validator('amount')
+    @field_validator("amount")
     @classmethod
     def validate_positive_amount(cls, v: MoneySchema) -> MoneySchema:
         if v.amount <= 0:
-            raise ValueError('El monto debe ser positivo')
+            raise ValueError("El monto debe ser positivo.")
         return v
-    
+
     @model_validator(mode="after")
     def validate_different_accounts(self) -> "TransactionEntryDTO":
         if self.source_account_id == self.destination_account_id:
@@ -129,12 +135,11 @@ class TransactionFilterDTO(BaseModel):
     date_to: Optional[datetime] = None
     tag_ids: Optional[List[UUID4]] = None
     description_contains: Optional[str] = None
- 
+
     model_config = {"frozen": True}
- 
+
 
 class TransactionOutputDTO(BaseModel):
-    """ DTO de Salida: Leer transacción """
     id: UUID4
     date: datetime
     description: str
@@ -148,23 +153,26 @@ class TransactionOutputDTO(BaseModel):
 
     model_config = {"from_attributes": True}
 
-# --- TAGS ---
+
+# ─────────────────────────────────────────
+# Etiquetas
+# ─────────────────────────────────────────
+
 class TagDTO(BaseModel):
     id: Optional[UUID4] = None
     name: str = Field(..., min_length=1, max_length=50)
     color: str = Field(default="#a8a8a8", pattern=r"^#[0-9a-fA-F]{6}$")
- 
-    model_config = {"from_attributes": True}
 
+    model_config = {"from_attributes": True}
 
 
 # ─────────────────────────────────────────
 # Reglas Recurrentes
 # ─────────────────────────────────────────
- 
+
 from src.domain.models import RecurrenceType, RecurrenceFrequency, IntervalUnit, TransactionType
- 
- 
+
+
 class RecurringRuleCreateDTO(BaseModel):
     description: Optional[str] = Field(default=None, max_length=200)
     amount: MoneySchema
@@ -172,17 +180,17 @@ class RecurringRuleCreateDTO(BaseModel):
     destination_account_id: UUID4
     transaction_type: TransactionType
     tags_ids: List[UUID4] = Field(default_factory=list)
- 
+
     recurrence_type: RecurrenceType = RecurrenceType.CALENDAR_BASED
     frequency: Optional[RecurrenceFrequency] = None
     day_of_execution: Optional[int] = None
     interval_value: Optional[int] = None
     interval_unit: Optional[IntervalUnit] = None
- 
+
     start_date: datetime = Field(default_factory=datetime.now)
     end_date: Optional[datetime] = None
     is_active: bool = True
- 
+
     @model_validator(mode="after")
     def validate_recurrence_config(self) -> "RecurringRuleCreateDTO":
         if self.recurrence_type == RecurrenceType.CALENDAR_BASED:
@@ -196,16 +204,16 @@ class RecurringRuleCreateDTO(BaseModel):
             if not self.interval_unit:
                 raise ValueError("INTERVAL_BASED requiere 'interval_unit'.")
         return self
- 
- 
+
+
 class RecurringRuleUpdateDTO(BaseModel):
     description: Optional[str] = Field(default=None, max_length=200)
     amount: Optional[MoneySchema] = None
     tags_ids: Optional[List[UUID4]] = None
     end_date: Optional[datetime] = None
     is_active: Optional[bool] = None
- 
- 
+
+
 class RecurringRuleOutputDTO(BaseModel):
     id: UUID4
     description: Optional[str]
@@ -216,34 +224,34 @@ class RecurringRuleOutputDTO(BaseModel):
     destination_account_name: str
     transaction_type: TransactionType
     tags_ids: List[UUID4]
- 
+
     recurrence_type: RecurrenceType
     frequency: Optional[RecurrenceFrequency]
     day_of_execution: Optional[int]
     interval_value: Optional[int]
     interval_unit: Optional[IntervalUnit]
- 
+
     start_date: datetime
     end_date: Optional[datetime]
     is_active: bool
     last_execution_date: Optional[datetime]
     next_execution_date: Optional[datetime]
- 
+
     model_config = {"from_attributes": True}
- 
- 
+
+
 # ─────────────────────────────────────────
 # Reportes
 # ─────────────────────────────────────────
- 
+
 class AccountBalanceSummaryDTO(BaseModel):
     """Resumen de saldo de una cuenta."""
     id: UUID4
     name: str
     type: AccountType
     current_balance: MoneySchema
- 
- 
+
+
 class CategorySummaryDTO(BaseModel):
     """Desglose de una categoría dentro de un período."""
     category_id: UUID4
@@ -251,8 +259,8 @@ class CategorySummaryDTO(BaseModel):
     total: MoneySchema
     transaction_count: int
     percentage: float  # del total de la misma naturaleza (ingresos o gastos)
- 
- 
+
+
 class PeriodSummaryDTO(BaseModel):
     """Resumen financiero de un período."""
     period_start: datetime
@@ -262,8 +270,8 @@ class PeriodSummaryDTO(BaseModel):
     net: MoneySchema  # income - expense
     expense_by_category: List[CategorySummaryDTO] = Field(default_factory=list)
     income_by_category: List[CategorySummaryDTO] = Field(default_factory=list)
- 
- 
+
+
 class MonthlyEvolutionDTO(BaseModel):
     """Datos de un mes para la gráfica de evolución."""
     year: int
@@ -272,8 +280,8 @@ class MonthlyEvolutionDTO(BaseModel):
     income: MoneySchema
     expense: MoneySchema
     net: MoneySchema
- 
- 
+
+
 class NetWorthDTO(BaseModel):
     """Patrimonio neto actual."""
     total_assets: MoneySchema
@@ -281,4 +289,3 @@ class NetWorthDTO(BaseModel):
     net_worth: MoneySchema         # assets - liabilities
     accounts: List[AccountBalanceSummaryDTO] = Field(default_factory=list)
     calculated_at: datetime = Field(default_factory=datetime.now)
- 
